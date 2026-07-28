@@ -1,5 +1,28 @@
 # Changelog — nc-felix
 
+## 0.2.0 — 2026-07-28
+
+Umbau auf das **eigenständige Ein-Plugin-Modell** (Auftrag Maintainer 2026-07-28: „Module
+statt Abteilungen, kein Kern als Plugin — das reicht als Modul"):
+
+- **Kern-Dependency entfernt** (`dependencies: ["nc"]` gestrichen) — der Kern ist jetzt ein
+  **Modul** dieses Plugins, kein eigenes Plugin. Koexistenz-Regel dokumentiert: nicht
+  parallel zum NovaCore-Kern `nc` betreiben (doppelte Gates).
+- **Kernmodul (ohne Präfix), 6 Skills:** `start`, `save-session`, `journal` (Workflow
+  WP0/WP8, angepasste Ports aus dem NovaCore-Kern) sowie `os-info`, `code-tour`,
+  `skill-builder` (Maintenance-Basics; `os-info`/`skill-builder` nach Onsite-Vorbild,
+  `code-tour` Neubau).
+- **Eigene Kontroll-Schicht:** FFG (`hooks/nc-ffg.js` + `hooks/lib/`) als verbatim-Port aus
+  dem NovaCore-Kern übernommen (gleiche Env-Schalter `NC_FFG*`), SessionStart-Hinweis
+  (`hooks/nc-session-start.js`) auf `/nc-felix:`-Namespace angepasst; `.nc-os`-Marker-Logik
+  unverändert (isFile-Prüfung).
+- **Geteilte Strukturen ins Plugin übernommen:** `felix-sync.md` (Global-Anweisung, Port der
+  `nc-sync.md`), `wp-rahmen.md` (WP0–WP8, Träger: Kernmodul/Arbeitsmodule),
+  `module-registry.json` (Modul-SSOT), `referenz/skill-authoring.md` (Formatregeln).
+- **Tests erweitert:** FFG-Testsuite (verbatim übernommen) + SessionStart-Tests (angepasst)
+  + Struktur-/Frontmatter-Invarianten (Eigenständigkeit, Hooks-Pflicht, Registry-Spiegel,
+  YAML-Falle, Plugin-Grenze). — Agent: Claude (Fable 5)
+
 ## 0.1.0 — 2026-07-28
 
 - Abteilungsplugin `nc-felix` als **erster Satellit des NovaCore-OS** angelegt (Muster:

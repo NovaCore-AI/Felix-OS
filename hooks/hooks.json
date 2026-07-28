@@ -1,0 +1,27 @@
+{
+  "description": "Felix-OS Kontroll-Schicht — FFG (Fact-Forcing-Gate) + Session-Start-Hinweis, übernommen aus dem NovaCore-OS-Kern nc (verbatim-Port, gleiche Env-Schalter). FFG aktiv überall, wo das Plugin installiert ist; Opt-out nur per Env NC_FFG=off. Gates: Edit/Write/MultiEdit je Zieldatei (Ausnahmen per NC_FFG_EXEMPT_GLOBS, Volltext-Budget NC_FFG_FULL_DENIALS), destruktive Bash-Kommandos einzeln (Zusatzmuster per NC_FFG_EXTRA_DESTRUCTIVE), Routine-Bash einmal je Session; Read-only-Git nie. Fail-open bei internen Fehlern. Session-Start-Hinweis nur in Repos mit .nc-os-Marker (Komfort, kein Gate).",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/nc-session-start.js\""
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/nc-ffg.js\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

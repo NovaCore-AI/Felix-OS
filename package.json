@@ -1,8 +1,7 @@
 {
   "name": "nc-felix",
   "private": true,
-  "description": "Tests und Verifikation für das Abteilungsplugin nc-felix (Plugin-Version steht ausschließlich in .claude-plugin/plugin.json).",
-  "type": "module",
+  "description": "Tests und Verifikation für das Felix-OS-Plugin nc-felix (Plugin-Version steht ausschließlich in .claude-plugin/plugin.json). Bewusst KEIN type:module — die Hooks unter hooks/ sind CommonJS (.js mit require) und laufen im Plugin-Cache mit dieser package.json im Scope; Tests sind explizit .mjs.",
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "verify": "node --test test/*.test.mjs"
