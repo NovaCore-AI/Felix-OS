@@ -54,7 +54,11 @@ Port aus dem NovaCore-Kern `nc`, gleiche Env-Schalter (`NC_FFG=off` nur durch de
 
 Herkunft der Strukturen: NovaCore-OS (`NovaCore-AI/NovaCoreAI-OS`) — FFG, WP-Rahmen,
 Sync-Anweisung, Formatregeln; verbindliche Prozesse dort:
-`knowledge-base/standardprozesse/plugin-bau.md` (§3a Satellit) im OS-Repo. Bei Format-Fragen
+`knowledge-base/standardprozesse/plugin-bau.md` im OS-Repo — **§3b ist der mit diesem Repo
+pilotierte Standardablauf** (eigenständiges Kollegen-OS als Satellit, inkl. der
+verifizierten Install-Fallen: Repo-Name = reale Heimat, kein `type: module` bei
+CommonJS-Hooks, SSH-Falle `CLAUDE_CODE_PLUGIN_PREFER_HTTPS=1`, Plugin-Repo nie als
+Marketplace adden); §3a beschreibt die Satelliten-Pin-Mechanik. Bei Format-Fragen
 zu Plugin/Marketplace/Skills zuerst die offizielle Claude-Code-Doku abrufen
 (code.claude.com/docs: `plugins-reference`, `plugin-marketplaces`, `skills`) — nie aus dem
 Gedächtnis.

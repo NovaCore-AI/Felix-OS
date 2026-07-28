@@ -92,7 +92,9 @@ Das Repo **IST** das Plugin `nc-felix` (Manifest an der Wurzel). Ein Plugin, unt
 **Module** (Skill-Präfixe, Kernmodul ohne Präfix): `skills/<name>/SKILL.md` ·
 `hooks/` (Kontroll-Schicht, genau einmal) · `wp-rahmen.md` · `module-registry.json` ·
 `referenz/skill-authoring.md` · diese Datei. **Version je Release genau an einer Stelle:**
-`.claude-plugin/plugin.json`.
+`.claude-plugin/plugin.json`. Entstanden nach dem pilotierten Standardablauf
+`knowledge-base/standardprozesse/plugin-bau.md` §3b im **OS-Repo** `NovaCore-AI/NovaCoreAI-OS`
+(Quellenangabe — dort auch die verifizierten Install-Fallen).
 
 ### 3.3 Memory-Trennung (streng)
 

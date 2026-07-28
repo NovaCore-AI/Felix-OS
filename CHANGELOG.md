@@ -9,7 +9,9 @@
   GitHub-Sources klonen per Default über SSH — ohne autorisierten SSH-Key schlägt die
   Installation mit `Permission denied (publickey)` fehl. Abhilfe:
   `CLAUDE_CODE_PLUGIN_PREFER_HTTPS=1` setzen (nutzt die gh/git-Credentials).
-  — Agent: Claude (Fable 5)
+- Doku: `AGENTS.md` und `felix-sync.md` verweisen jetzt auf den mit diesem Repo
+  pilotierten Standardablauf `plugin-bau.md` §3b des OS-Repos (eigenständiges
+  Kollegen-OS, inkl. Install-Fallen). — Agent: Claude (Fable 5)
 
 ## 0.2.0 — 2026-07-28
 
