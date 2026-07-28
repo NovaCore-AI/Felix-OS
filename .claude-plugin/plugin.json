@@ -1,11 +1,11 @@
 {
   "name": "nc-felix",
   "displayName": "Felix-OS — Abteilung felix (eigenständig)",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Eigenständiges Felix-OS aus dem Marketplace novacore-os: EIN Plugin, unterteilt in Module (Skill-Präfixe) statt Abteilungen. Kernmodul (ohne Präfix) mit start, save-session, journal, os-info, code-tour, skill-builder — Workflow WP0/WP8 plus Maintenance-Basics — sowie eigener Kontroll-Schicht (FFG Fact-Forcing-Gate + SessionStart-Hinweis, Port aus dem NovaCore-Kern nc) und geteilter Global-Anweisung felix-sync.md. Hängt bewusst NICHT am Kern nc; Arbeitsmodule werden separat definiert.",
   "author": {
     "name": "NovaCore AI"
   },
-  "repository": "https://github.com/NovaCore-AI/NovaCoreAI-OS-Felix",
+  "repository": "https://github.com/NovaCore-AI/Felix-OS",
   "license": "UNLICENSED"
 }

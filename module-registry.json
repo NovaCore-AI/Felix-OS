@@ -1,5 +1,5 @@
 {
-  "version": "0.2.0",
+  "version": "0.2.1",
   "plugin": "nc-felix",
   "marketplace": "novacore-os",
   "_hinweis": "Metadaten-SSOT des Felix-OS: EIN Plugin, unterteilt in Module (Skill-Präfixe), keine Abteilungen. Das Kernmodul trägt kein Präfix. Die Datei steuert NICHTS aus — nutzbar ist, was der Skill-Scan (skills/<name>/SKILL.md) wirklich findet; Ordner ohne SKILL.md ignoriert der Scanner. Ein neues Modul entsteht durch ein neues Präfix plus Eintrag hier (Ablauf: /nc-felix:skill-builder).",

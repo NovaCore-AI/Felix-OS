@@ -1,5 +1,16 @@
 # Changelog — nc-felix
 
+## 0.2.1 — 2026-07-28
+
+- **fix: Repository-URL auf die reale Heimat korrigiert** — das Repo wurde vom Maintainer
+  als `NovaCore-AI/Felix-OS` angelegt (nicht `NovaCoreAI-OS-<Abteilung>` wie im
+  Satelliten-Namensschema angenommen); `repository` im Manifest entsprechend berichtigt.
+- Team-Rollout-Hinweis verifiziert (Install-Fehler 2026-07-28, App und CLI):
+  GitHub-Sources klonen per Default über SSH — ohne autorisierten SSH-Key schlägt die
+  Installation mit `Permission denied (publickey)` fehl. Abhilfe:
+  `CLAUDE_CODE_PLUGIN_PREFER_HTTPS=1` setzen (nutzt die gh/git-Credentials).
+  — Agent: Claude (Fable 5)
+
 ## 0.2.0 — 2026-07-28
 
 Umbau auf das **eigenständige Ein-Plugin-Modell** (Auftrag Maintainer 2026-07-28: „Module
