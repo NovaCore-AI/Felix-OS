@@ -1,0 +1,7 @@
+# lokales nc-Memory (nc-sync.md §3.3 des Kern-Plugins) — nie committen
+.nc/
+# CLAUDE.md bleibt lokal; normative Repo-Anweisung ist die getrackte AGENTS.md (OS-Muster)
+CLAUDE.md
+node_modules/
+Thumbs.db
+.DS_Store

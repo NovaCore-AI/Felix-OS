@@ -1,0 +1,10 @@
+{
+  "name": "nc-felix",
+  "private": true,
+  "description": "Tests und Verifikation für das Abteilungsplugin nc-felix (Plugin-Version steht ausschließlich in .claude-plugin/plugin.json).",
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "verify": "node --test test/*.test.mjs"
+  }
+}

@@ -1,0 +1,1 @@
+Marker-DATEI des NovaCore-OS: schaltet den SessionStart-Hinweis des Kern-Plugins nc frei (Komfort, kein Gate; Prüfung per isFile). Nicht löschen, nicht in ein Verzeichnis umwandeln.

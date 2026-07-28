@@ -1,0 +1,14 @@
+{
+  "name": "nc-felix",
+  "displayName": "NovaCore-OS — Abteilung felix",
+  "version": "0.1.0",
+  "description": "Abteilung felix des NovaCore-OS. Angelegt, Module und Skills werden separat mit dem Fachbereich geplant — noch keine gebauten Skills. Installierbar, damit die Abteilungsgrenze existiert und der Kern nc als Dependency mitkommt (Kontroll-Hook FFG, WP-Rahmen, geteilte Global-Anweisung nc-sync.md).",
+  "author": {
+    "name": "NovaCore AI"
+  },
+  "repository": "https://github.com/NovaCore-AI/NovaCoreAI-OS-Felix",
+  "license": "UNLICENSED",
+  "dependencies": [
+    "nc"
+  ]
+}
