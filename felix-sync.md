@@ -73,11 +73,11 @@ Behauptungen nur mit Beweis (grüner Test, Command-Output, beobachtetes Verhalte
 
 ## 3. Pfade & Struktur
 
-### 3.1 Arbeits-Repo (mit `.nc-os`-Marker)
+### 3.1 Arbeits-Repo
 
 ```
 <repo-root>/
-├── .nc-os                  # Marker-DATEI — schaltet die Begrüßung des SessionStart-Hooks frei
+│                           # (kein Marker nötig: beide Gates sind markerlos aktiv)
 ├── .nc/                    # lokales Memory (in .gitignore, nie committen)
 │   └── erinnerung/
 │       ├── stand.md        # konsolidierter Gesamtstand
@@ -91,10 +91,31 @@ Behauptungen nur mit Beweis (grüner Test, Command-Output, beobachtetes Verhalte
 Das Repo **IST** das Plugin `nc-felix` (Manifest an der Wurzel). Ein Plugin, unterteilt in
 **Module** (Skill-Präfixe, Kernmodul ohne Präfix): `skills/<name>/SKILL.md` ·
 `hooks/` (Kontroll-Schicht, genau einmal) · `wp-rahmen.md` · `module-registry.json` ·
-`referenz/skill-authoring.md` · diese Datei. **Version je Release genau an einer Stelle:**
-`.claude-plugin/plugin.json`. Entstanden nach dem pilotierten Standardablauf
-`knowledge-base/standardprozesse/plugin-bau.md` §3b im **OS-Repo** `NovaCore-AI/NovaCoreAI-OS`
-(Quellenangabe — dort auch die verifizierten Install-Fallen).
+`referenz/skill-authoring.md` · `knowledge-base/` (eigene Wissensbasis) · diese Datei.
+**Version je Release genau an einer Stelle:** `.claude-plugin/plugin.json`. Entstanden nach dem
+pilotierten Standardablauf `knowledge-base/standardprozesse/abteilungs-plugin-bau.md` §3b im
+**OS-Repo** `NovaCore-AI/NovaCoreAI-OS` (Quellenangabe — dort auch die verifizierten
+Install-Fallen).
+
+### 3.2a Pflege der eigenen Wissensbasis
+
+`knowledge-base/` ist die **eigene, isolierte** Wissensbasis dieses OS — gepflegt
+ausschließlich von den Hooks und Skills **dieses** Plugins. Welche Datei wann nachgezogen wird:
+
+| Anlass | Was in **derselben** Änderung fällig wird |
+|---|---|
+| Wissensdatei neu | Zeile in `SSOT-Document-Index` Teil 2 (Link, Status, „Relevant wenn …") — testerzwungen |
+| Wissensdatei verschoben, umbenannt, gelöscht | Index **Teil 1 und Teil 2** · `grep` nach dem alten Pfad über das ganze Repo |
+| Neue Kategorie | Routing-Zeile in Teil 1 (gehört hinein / nicht hinein / Lebenszyklus) **und** eigene Tabelle in Teil 2 · `PLATZHALTER.md`, solange leer |
+| Vorhaben abgeschlossen oder verworfen | `git mv` von `grundwissen/` nach `bauplan-archiv/`, Inhalt **unverändert** · Index-Zeile wandert mit, Status `historisch` |
+| Idee ohne Auftrag | Dokument in `ideen-backlog/` mit Datumspräfix · Index-Zeile |
+| Idee wird beauftragt | **neuer** Bauplan in `grundwissen/`, der auf die Idee verweist — die Idee bleibt stehen |
+| Eigener Fehler / gefundener Bug | Eintrag in `agent-learnings.md` bzw. `debug-log.md`, sofort, append-only |
+
+**Kein Bump** für reine Wissensbasis-Arbeit (sie ändert kein ausgeliefertes Verhalten), ein
+CHANGELOG-Eintrag mit Namenszeichnung trotzdem. **Isolation:** Diese Wissensbasis ist terminal —
+nichts wandert von hier in Dokumente des OS-Repos, und kein Artefakt des OS-Repos liest hier
+mit. Der Wächter `test/wissensbasis.test.mjs` prüft das mechanisch.
 
 ### 3.3 Memory-Trennung (streng)
 
@@ -155,7 +176,8 @@ Alle Skills laufen unter **`/nc-felix:<name>`** — der Namespace ist der Name d
 Marketplace-Eintrags und nicht frei wählbar. Fremde Plugin-Familien werden **nie** verändert.
 
 **Koexistenz-Regel:** Das Felix-OS bringt seine eigene Kontroll-Schicht mit (FFG +
-SessionStart-Hinweis, Marker `.nc-os`). Es ist **nicht** dafür gedacht, parallel zum
+Session-Start-Zwang — beide markerlos, Opt-out nur per `NC_FFG` / `NC_START_GATE`). Es ist
+**nicht** dafür gedacht, parallel zum
 NovaCore-Kern `nc` (bzw. `nc-development`) in derselben Session zu laufen — sonst feuern
 Gates und Begrüßung doppelt. Wer beides installiert hat, deaktiviert eines davon.
 

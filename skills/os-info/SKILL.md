@@ -37,7 +37,10 @@ strikt zwischen „installiert und nutzbar" und „geplant, aber nicht gebaut".
    Env-Variable `NC_FFG` auf einem Aus-Wert steht (`off`/`0`/`false`/`disabled`). Das FFG
    liegt in diesem Plugin und ist überall scharf, wo es installiert ist — außer bei gesetztem
    Opt-out. Klar sagen, ob die Gates HIER gerade scharf sind. Zusätzlich den Marker-Status
-   des aktuellen Repos nennen (`.nc-os`-**Datei** vorhanden → SessionStart-Hinweis aktiv).
+   des aktuellen Repos nennen. **Kein Marker mehr:** Gate 1 (FFG) und Gate 2
+   (Session-Start-Zwang) sind markerlos überall aktiv, wo das Plugin installiert ist; den
+   Scope steuern ausschließlich die Env-Schalter `NC_FFG` und `NC_START_GATE`. Ob ein
+   `.nc-os` im Repo liegt, ist ohne Wirkung und wird nicht mehr berichtet.
 5. **Geteilte Anweisung:** auf `felix-sync.md` und `wp-rahmen.md` dieses Plugins als
    Methodik-/Workflow-Grundlage hinweisen (WP0–WP8, rote Linien).
 6. **Übersicht ausgeben** — kompakt und mit Quelle je Angabe: Plugin (Version, Quelle, aktiv

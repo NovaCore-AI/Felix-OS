@@ -496,8 +496,29 @@ function isReadOnlyGitIntrospection(command) {
     return false;
   }
 
-  const subcommand = tokens[1].toLowerCase();
-  const args = tokens.slice(2);
+  // Fuehrendes `-C <pfad>` zulassen: Es wechselt nur das Arbeitsverzeichnis des Aufrufs und
+  // bleibt damit rein lesend. AGENTS.md verlangt beim Pflicht-Einstieg ausdruecklich
+  // `git -C <fremder-baum> status --short`, sobald mehrere Worktrees existieren — vorher lief
+  // genau diese Pflichtform ins Start-Gate, weil tokens[1] dann `-C` war statt `status`
+  // (Review-Befund Codex 2026-08-11). Metazeichen sind oben bereits ausgeschlossen.
+  let rest = tokens.slice(1);
+  if (rest[0] === '-C' && rest.length >= 3) {
+    rest = rest.slice(2);
+  }
+  if (rest.length < 1) {
+    return false;
+  }
+
+  const subcommand = rest[0].toLowerCase();
+  const args = rest.slice(1);
+
+  if (subcommand === 'worktree') {
+    // NUR `list`. `add`, `remove`, `move`, `prune`, `repair`, `lock`/`unlock` veraendern den
+    // Zustand und bleiben gegated — erlaubt wird nicht das Subkommando, sondern genau eine
+    // lesende Form.
+    return args.length >= 1 && args[0] === 'list'
+      && args.slice(1).every(arg => arg === '--porcelain');
+  }
 
   if (subcommand === 'status') {
     return args.every(arg => ['--porcelain', '--short', '--branch'].includes(arg));
@@ -512,7 +533,10 @@ function isReadOnlyGitIntrospection(command) {
   }
 
   if (subcommand === 'log') {
-    return args.every(arg => arg === '--oneline' || /^--max-count=\d+$/.test(arg));
+    // `-N` (z. B. -10) ergaenzt 2026-08-11 (Bauplan AP6, Kern-Fassung 2026-08-10): die
+    // Kurzform ist der in AGENTS.md dokumentierte Pflicht-Einstieg (`git log --oneline -10`)
+    // und rein lesend.
+    return args.every(arg => arg === '--oneline' || /^--max-count=\d+$/.test(arg) || /^-\d+$/.test(arg));
   }
 
   if (subcommand === 'show') {
@@ -534,7 +558,12 @@ function isReadOnlyGitIntrospection(command) {
   }
 
   if (subcommand === 'rev-parse') {
-    return args.length === 2 && args[0] === '--abbrev-ref' && /^head$/i.test(args[1]);
+    // Erlaubt: `--abbrev-ref HEAD` (Branch) sowie seit 2026-08-11 (Bauplan AP6, Kern-Fassung
+    // 2026-08-10) `--short HEAD` und blankes `HEAD` (Commit-Hash) — die Formen des
+    // Fakten-Stempels aus Gate 2, rein lesend.
+    if (args.length === 2 && args[0] === '--abbrev-ref' && /^head$/i.test(args[1])) return true;
+    if (args.length === 2 && args[0] === '--short' && /^head$/i.test(args[1])) return true;
+    return args.length === 1 && /^head$/i.test(args[0]);
   }
 
   return false;

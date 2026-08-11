@@ -14,7 +14,7 @@ const manifest = JSON.parse(
 );
 
 const KERNMODUL_SKILLS = [
-  'start', 'save-session', 'journal', 'os-info', 'code-tour', 'skill-builder',
+  'start', 'save-session', 'journal', 'os-info', 'code-tour', 'skill-builder', 'doku-sync',
 ];
 
 function skillDirs() {
@@ -125,10 +125,17 @@ test('Frontmatter: description bricht nicht am YAML-Plain-Scalar', () => {
 });
 
 test('Ausgelieferte Markdown-Dateien verweisen nicht über die Plugin-Grenze', () => {
-  // Installierte Plugins liegen isoliert im Cache — ../-Pfade und Repo-Pfade lösen
-  // dort nicht auf. Repo-Dokumente nur als Quellenangabe („OS-Repo").
+  // Installierte Plugins liegen isoliert im Cache — ../-Pfade und FREMDE Repo-Pfade lösen
+  // dort nicht auf. Fremde Repo-Dokumente nur als Quellenangabe („OS-Repo").
+  //
+  // Seit dieses Repo seine EIGENE knowledge-base/ führt (2026-08-11), ist die Zeichenkette
+  // "knowledge-base/" allein kein Befund mehr: Der eigene Ordner liegt IM Plugin (die
+  // Repo-Wurzel ist das Plugin) und löst nach der Installation sehr wohl auf. Entscheidend
+  // ist deshalb, ob der genannte Pfad hier existiert — existiert er nicht, meint er das
+  // OS-Repo und muss als solches gekennzeichnet sein.
   // Ausnahme: skill-authoring.md zitiert die verbotenen Muster als Regeltext.
   const AUSNAHME = join('referenz', 'skill-authoring.md');
+  const KB_PFAD = /knowledge-base\/[A-Za-z0-9._/-]*/g;
   const stack = [root];
   while (stack.length) {
     const cur = stack.pop();
@@ -141,10 +148,13 @@ test('Ausgelieferte Markdown-Dateien verweisen nicht über die Plugin-Grenze', (
       lines.forEach((line, i) => {
         assert.equal(/\.\.\//.test(line), false,
           `${full}:${i + 1}: ../-Pfad verlässt das Plugin-Verzeichnis`);
-        if (/knowledge-base\//.test(line)) {
+        for (const roh of line.match(KB_PFAD) || []) {
+          const pfad = roh.replace(/[.,;:)\]-]+$/, '');
+          // Eigener Pfad? Dann liegt er im Plugin und ist unbedenklich.
+          if (existsSync(join(root, ...pfad.split('/')))) continue;
           const context = lines.slice(Math.max(0, i - 2), i + 2).join(' ');
           assert.match(context, /OS-Repo/,
-            `${full}:${i + 1}: Repo-Pfad ohne "OS-Repo"-Qualifizierung — nach Installation nicht auflösbar`);
+            `${full}:${i + 1}: fremder Repo-Pfad "${pfad}" ohne "OS-Repo"-Qualifizierung — nach Installation nicht auflösbar`);
         }
       });
     }

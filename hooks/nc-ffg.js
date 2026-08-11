@@ -34,6 +34,13 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { isDestructiveBash, isReadOnlyGitIntrospection } = require('./lib/bash-analyse');
+// Session-Schluessel + Subagenten-Erkennung liegen seit 2026-08-11 in der geteilten Lib
+// (Bauplan „Prozesskorpus-Nachzug + Satelliten-SSOT", AP6) — Start-Gate, Stempel und
+// Session-Start-Injektion muessen denselben Schluessel ableiten wie das FFG; eine zweite
+// Kopie waere Drift-Risiko.
+// Nur was hier gebraucht wird: der Destruktiv-Key hasht inline ueber crypto (Review-Befund F2,
+// Kimi K3 2026-08-11 — hashSessionKey war importiert, aber ungenutzt).
+const { resolveSessionKey, isSubagentInvocation } = require('./lib/session-key');
 
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // State verfaellt nach 30 Min Inaktivitaet
 const READ_HEARTBEAT_MS = 60 * 1000;       // last_active hoechstens einmal je Minute auffrischen
@@ -61,35 +68,6 @@ function stateDir() {
   if (process.env.NC_FFG_STATE_DIR) return process.env.NC_FFG_STATE_DIR;
   if (process.env.CLAUDE_PLUGIN_DATA) return path.join(process.env.CLAUDE_PLUGIN_DATA, 'ffg');
   return path.join(os.tmpdir(), 'nc-ffg');
-}
-
-function hashSessionKey(prefix, value) {
-  return prefix + '-' + crypto.createHash('sha256').update(String(value)).digest('hex').slice(0, 24);
-}
-
-function sanitizeSessionKey(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return '';
-  const sanitized = raw.replace(/[^a-zA-Z0-9_-]/g, '_');
-  // Nur unveraendert-saubere IDs direkt verwenden: jede Zeichen-Ersetzung koennte
-  // zwei reale Sessions (a/b vs. a_b) auf denselben Key falten — dann lieber
-  // hashen (Review-Haertung 2026-07-28 gegenueber dem Vorbild).
-  if (sanitized === raw && sanitized.length <= 64) return sanitized;
-  return hashSessionKey('sid', raw);
-}
-
-// Session-Schluessel aufloesen: session_id → Transcript-Pfad → Projekt-Fingerprint.
-function resolveSessionKey(input) {
-  const direct = sanitizeSessionKey((input && input.session_id) || process.env.CLAUDE_SESSION_ID);
-  if (direct) return direct;
-
-  const transcriptPath = input && input.transcript_path;
-  if (transcriptPath && String(transcriptPath).trim()) {
-    return hashSessionKey('tx', path.resolve(String(transcriptPath).trim()));
-  }
-
-  const projectFingerprint = process.env.CLAUDE_PROJECT_DIR || (input && input.cwd) || process.cwd();
-  return hashSessionKey('proj', path.resolve(projectFingerprint));
 }
 
 let activeStateFile = null;
@@ -311,15 +289,6 @@ function sanitizePath(filePath) {
   return sanitized.trim().slice(0, 500);
 }
 
-// Subagenten-Kennung laut offizieller Hook-Doku (agent_id/agent_type, verifiziert
-// code.claude.com/docs/en/hooks, abgerufen 2026-07-26). Datei-Gates entfallen dort —
-// der Parent hat die Datei bereits gegated; Bash-Gates gelten weiterhin.
-function isSubagentInvocation(input) {
-  if (!input || typeof input !== 'object') return false;
-  return [input.agent_id, input.agent_type]
-    .some(v => typeof v === 'string' && v.trim());
-}
-
 // --- Gate-Texte (deutsch; bewusst OHNE Abschalt-Hinweis — Schicht 5 raeumt der
 // KI kein Mitspracherecht ein, der Env-Schalter ist fuer Menschen dokumentiert) ---
 
@@ -466,4 +435,7 @@ try {
 } catch (e) {
   try { process.stderr.write('nc-ffg fail-open: ' + (e && e.message)); } catch (_) { /* egal */ }
 }
-process.exit(0);
+// Kein process.exit(): das kann auf POSIX den gepufferten stdout-Write (Pipe) abschneiden —
+// eine abgeschnittene Deny-JSON hiesse: das Gate blockt still nicht. exitCode 0 genuegt,
+// es laeuft nichts Asynchrones (Kern-Fassung 2026-08-10, hier nachgezogen 2026-08-11).
+process.exitCode = 0;

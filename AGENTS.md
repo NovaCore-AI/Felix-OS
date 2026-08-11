@@ -15,6 +15,53 @@ Marketplace-Updates synchron). Der Pflicht-Zyklus steht in `wp-rahmen.md` (WP0�
 Linien). Die Safety-Schicht setzt das **FFG (Fact-Forcing-Gate)** unter `hooks/` durch —
 Port aus dem NovaCore-Kern `nc`, gleiche Env-Schalter (`NC_FFG=off` nur durch den Menschen).
 
+## Pflicht-Einstieg — vor der ersten Änderung, jedes Mal
+
+Vier Schritte, in dieser Reihenfolge. Sie kosten zwei Minuten und ersparen die halbe
+Fehlersuche:
+
+1. **Log-Stand:** `git log --oneline -10` und `git status`; bei mehreren Bäumen zusätzlich
+   `git worktree list` und in jedem fremden Baum `git status --short`. **Der Working Tree ist
+   die Wahrheit**, nicht der letzte Commit und nicht die Doku.
+2. **Produktstand:** `CHANGELOG.md` (autoritativ für gebaut/fehlend) und die Version in
+   `.claude-plugin/plugin.json`.
+3. **Eigene Wissensbasis:** `knowledge-base/SSOT-Document-Index.md` — Teil 1 (wohin gehört ein
+   Dokument), Teil 2 (welche Quelle ist wann relevant). Der jüngste datierte Plan in
+   `knowledge-base/grundwissen/` ist der aktuelle Planungsstand.
+4. **Bekannte Fallen:** `knowledge-base/debugging-findings/agent-learnings.md` (eigene
+   Fehlermuster) und, vor jeder Fehlersuche, `debug-log.md` (bekannte Symptome).
+
+## Protokollzwang
+
+- **Eigener Fehler** — falsche Annahme, falscher Pfad, fehlgeschlagener Befehl durch eigenes
+  Verschulden, falsch umgesetztes Format → sofort ein Eintrag in
+  `knowledge-base/debugging-findings/agent-learnings.md`.
+- **Gefundener Bug oder Fehlbefund**, auch an fremdem Material → sofort ein Eintrag in
+  `knowledge-base/debugging-findings/debug-log.md`.
+
+Beide Protokolle sind **append-only**: nie rückdatieren, nie umschreiben. Ein widerlegter
+Eintrag bekommt einen **neuen**, der auf ihn verweist. Nicht sammeln, nicht beschönigen —
+sofort.
+
+## Wissensbasis dieses Repos
+
+`knowledge-base/` ist die **eigene, isolierte** Wissensbasis des Felix-OS: `grundwissen/`
+(laufende Vorhaben mit Datumspräfix und dauerhafte eigene Referenzen) · `bauplan-archiv/`
+(abgeschlossen oder verworfen, unverändert, terminal) · `debugging-findings/` (die zwei
+Protokolle) · `ideen-backlog/` (je Idee ein Dokument). Nur der Index liegt direkt in
+`knowledge-base/`.
+
+- **Jede neue, verschobene oder gelöschte Wissensdatei zieht ihre Index-Zeile in derselben
+  Änderung nach** — `test/wissensbasis.test.mjs` erzwingt Vollständigkeit, Linkgültigkeit,
+  Wurzel-Regel und Kategorie-Routing.
+- **Abgeschlossene oder verworfene Pläne wandern pflichtgemäß per `git mv` ins Archiv**, Inhalt
+  unverändert — sonst verliert `grundwissen/` die Aussage „das läuft gerade".
+- **Isolation:** Diese Wissensbasis ist **terminal**. Dieses Repo schreibt nie in Dokumente des
+  OS-Repos; es gibt keine Warteschlange, keine Kandidatenliste und keinen reservierten Platz
+  für so etwas. Umgekehrt liest kein Artefakt des OS-Repos hier mit.
+- **Auslieferung:** Das Repo ist das Plugin, die Wissensbasis fährt also mit in den
+  Plugin-Cache. Sie ist **Arbeitsmaterial, nie Laufzeit-Abhängigkeit eines Skills.**
+
 ## Harte Regeln dieses Repos
 
 - **Eigenständigkeit:** keine Plugin-Dependencies — der Kern ist hier ein **Modul**, kein
@@ -50,12 +97,30 @@ Port aus dem NovaCore-Kern `nc`, gleiche Env-Schalter (`NC_FFG=off` nur durch de
 5. Das Team erhält das Update über die Marketplace-Mechanik (`/plugin update` bzw.
    Auto-Update).
 
+## Abschluss-Checkliste — vor jedem Commit-Vorschlag
+
+- [ ] **Wissensbasis:** neue oder verschobene Dateien am richtigen Ort, `SSOT-Document-Index`
+      in derselben Änderung nachgezogen; abgeschlossene Pläne ins Archiv verschoben
+- [ ] **Protokolle** dieser Sitzung geschrieben (eigene Fehler → `agent-learnings.md`,
+      gefundene Bugs → `debug-log.md`)
+- [ ] **Toter-Pfad-Sweep:** `grep` nach jedem alten Pfad oder Namen über das **ganze** Repo
+- [ ] **`CHANGELOG.md`**-Eintrag **mit Namenszeichnung**
+- [ ] **Version-Bump** in `.claude-plugin/plugin.json` **plus** Registry-Spiegel
+      (`module-registry.json.version`) — nur wenn die Änderung ausgeliefert wird; reine
+      Wissensbasis-Arbeit braucht keinen Bump, den CHANGELOG-Eintrag trotzdem
+- [ ] **Tests:** `npm test` (bzw. `node --test test/*.test.mjs`) — wortgleich, Glob statt
+      Verzeichnis
+- [ ] **Validierung:** `claude plugin validate . --strict` (die Repo-Wurzel IST das Plugin,
+      `--strict` prüft Manifest **und** Skills)
+- [ ] **Behauptung nur mit gesehener Ausgabe** — „grün" und „behoben" erst nach dem Lauf
+
 ## Quellen
 
 Herkunft der Strukturen: NovaCore-OS (`NovaCore-AI/NovaCoreAI-OS`) — FFG, WP-Rahmen,
-Sync-Anweisung, Formatregeln; verbindliche Prozesse dort:
-`knowledge-base/standardprozesse/plugin-bau.md` im OS-Repo — **§3b ist der mit diesem Repo
-pilotierte Standardablauf** (eigenständiges Kollegen-OS als Satellit, inkl. der
+Sync-Anweisung, Formatregeln; verbindliche Prozesse dort (Quellenangabe, **kein** Lesepfad —
+dieses Repo funktioniert ohne einen Checkout des OS-Repos):
+`knowledge-base/standardprozesse/abteilungs-plugin-bau.md` im OS-Repo — **§3b ist der mit
+diesem Repo pilotierte Standardablauf** (eigenständiges Kollegen-OS als Satellit, inkl. der
 verifizierten Install-Fallen: Repo-Name = reale Heimat, kein `type: module` bei
 CommonJS-Hooks, SSH-Falle `CLAUDE_CODE_PLUGIN_PREFER_HTTPS=1`, Plugin-Repo nie als
 Marketplace adden); §3a beschreibt die Satelliten-Pin-Mechanik. Bei Format-Fragen

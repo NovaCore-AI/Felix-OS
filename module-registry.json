@@ -1,5 +1,5 @@
 {
-  "version": "0.2.1",
+  "version": "0.4.1",
   "plugin": "nc-felix",
   "marketplace": "novacore-os",
   "_hinweis": "Metadaten-SSOT des Felix-OS: EIN Plugin, unterteilt in Module (Skill-Präfixe), keine Abteilungen. Das Kernmodul trägt kein Präfix. Die Datei steuert NICHTS aus — nutzbar ist, was der Skill-Scan (skills/<name>/SKILL.md) wirklich findet; Ordner ohne SKILL.md ignoriert der Scanner. Ein neues Modul entsteht durch ein neues Präfix plus Eintrag hier (Ablauf: /nc-felix:skill-builder).",
@@ -7,14 +7,15 @@
     {
       "name": "kern",
       "praefix": "",
-      "status": "ausgeliefert — Workflow (WP0/WP8) + Maintenance-Basics",
+      "status": "ausgeliefert — Workflow (WP0/WP8), Maintenance-Basics und Doku-Pflege; eigene Kontroll-Schicht mit Gate 1 (FFG) und Gate 2 (Session-Start-Zwang, markerlos) sowie eigener isolierter Wissensbasis unter knowledge-base/",
       "skills": [
         "start",
         "save-session",
         "journal",
         "os-info",
         "code-tour",
-        "skill-builder"
+        "skill-builder",
+        "doku-sync"
       ]
     }
   ],

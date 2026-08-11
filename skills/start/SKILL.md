@@ -23,10 +23,11 @@ Blind-Start, den das Felix-OS verhindert.
 1. **Arbeits-Repo erfassen:** `git status --short --branch` und `git log --oneline -10`.
    Unkommittierte Änderungen und der jüngste Commit gehen jeder Doku-Aussage vor — der
    Working Tree ist die Wahrheit.
-2. **Marker prüfen:** Liegt im Repo-Root die **Datei** `.nc-os`? Sie steuert allein den
-   Begrüßungs-Scope des Session-Start-Hooks, nicht diesen Skill. Fehlt sie, das einmal
-   benennen („kein markiertes Felix-OS-Arbeits-Repo — die Begrüßung des Hooks bleibt aus")
-   und **normal weiterarbeiten**. Ein Verzeichnis gleichen Namens ist kein Marker.
+2. **Eigene Wissensbasis triagieren** (nur im Felix-OS-Repo selbst):
+   `knowledge-base/SSOT-Document-Index.md` — Teil 1 für das Routing, Teil 2 für die
+   Quellenwahl. Der jüngste datierte Plan in `knowledge-base/grundwissen/` ist der aktuelle
+   Planungsstand; die Session-Start-Injektion nennt ihn bereits. In einem fremden Arbeits-Repo
+   entfällt dieser Schritt.
 3. **Stand laden:** `.nc/erinnerung/stand.md` lesen — der konsolidierte Gesamtstand. Fehlt die
    Datei, das offen benennen statt zu improvisieren.
 4. **Jüngstes Journal laden:** neueste Datei aus `.nc/erinnerung/journal/` (Dateiname
@@ -42,16 +43,33 @@ Blind-Start, den das Felix-OS verhindert.
 7. **Lagebericht ausgeben:** Branch und Git-Lage · Stand in drei bis fünf Zeilen · offene
    Punkte aus dem Journal · nutzbare Module und Skills · **vorgeschlagener nächster
    Workflow-Schritt** mit dem Skill, der ihn trägt.
+8. **Start-Stempel setzen (Gate 2, letzter Schritt):** Erst **nach** dem Lagebericht den
+   Fakten-Stempel setzen — er öffnet das Start-Gate für schreibende Aktionen dieser Session:
+
+   ```
+   node "<plugin>/hooks/nc-start-stempel.js" --session <key> --branch <branch> --head <head>
+   ```
+
+   Den vollständigen Befehl samt Session-Schlüssel nennen die Session-Start-Injektion und jede
+   Gate-Ablehnung wörtlich — er wird **nicht** geraten. `--branch` und `--head` stammen aus der
+   realen Git-Lage (`git rev-parse --abbrev-ref HEAD` · `git rev-parse --short HEAD`); der
+   Stempel verifiziert beides gegen das Projektverzeichnis und verweigert bei Abweichung.
+   Außerhalb eines Git-Baums entfallen beide Argumente.
 
 ## Regeln
 
 - **Keine inhaltliche Arbeit vor abgeschlossenem Lagebericht** — kein Edit, kein Commit,
   keine Recherche „nebenbei".
-- **Dieser Skill ist rein lesend.** Er legt nichts an, ändert nichts, committet nichts.
+- **Dieser Skill ist rein lesend** — mit genau einer Ausnahme: dem Start-Stempel in Schritt 8,
+  der ausschließlich eine ephemere State-Datei unter `os.tmpdir()` schreibt.
 - **Quelle schlägt Gedächtnis:** Widerspricht der geladene Stand dem realen Repo-Zustand,
   gilt das Repo; die Abweichung wird im Lagebericht gemeldet, nicht stillschweigend geglättet.
-- **Fehlender Marker ist kein Abbruchgrund** — er verändert nur den Begrüßungs-Scope. Der
-  Skill weist einmal darauf hin und arbeitet weiter.
+- **Kein Marker mehr:** Der Session-Start-Zwang hängt seit 0.3.0 an **keiner** `.nc-os`-Datei —
+  ein Gate, das man vergessen kann, ist kein Gate. Wer die Injektion nicht will, setzt
+  `NC_START_GATE=off`; das ist eine bewusste Menschenentscheidung, keine Repo-Eigenschaft.
+- **Der Stempel ist ein Proxy, kein Beweis.** Ein Skript kann nicht prüfen, ob dieser Skill
+  inhaltlich lief. Wer ohne Lagebericht stempelt, umgeht Gate 2 so bewusst wie per Opt-out —
+  und trägt die Folgen.
 - Fehlt Stand oder Journal vollständig, wird das als **offener Erstlauf** gemeldet — der Stand
   wird **nicht** aus Commits rekonstruiert und als gesicherter Stand ausgegeben.
 - **`.nc/` gehört in die `.gitignore` des Arbeits-Repos** und wird nie committet; fehlt der
@@ -66,7 +84,9 @@ Blind-Start, den das Felix-OS verhindert.
 - Der Lagebericht nennt **jede gelesene Datei mit Pfad und Datum** (Stand, Journal,
   Projekt-Doku) oder benennt sie ausdrücklich als fehlend.
 - Branch, Anzahl unkommittierter Dateien und jüngster Commit-Hash sind ausgewiesen.
-- Der Marker-Zustand ist genannt (Datei vorhanden / fehlt / gleichnamiges Verzeichnis).
+- Der **Start-Stempel ist gesetzt** und seine Ausgabe zitiert (sie nennt Branch und HEAD, gegen
+  die verifiziert wurde) — oder es ist ausdrücklich benannt, dass außerhalb eines Git-Baums
+  nichts zu verifizieren war.
 - Die nutzbaren Module sind mit Skills und Aufrufform (`/nc-felix:<name>`) gelistet.
 - `git status --short` zeigt **keine** `.nc/`-Pfade (Ignore greift) — sonst wird der fehlende
   `.gitignore`-Eintrag im Bericht gemeldet.

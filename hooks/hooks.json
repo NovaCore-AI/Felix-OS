@@ -1,5 +1,5 @@
 {
-  "description": "Felix-OS Kontroll-Schicht — FFG (Fact-Forcing-Gate) + Session-Start-Hinweis, übernommen aus dem NovaCore-OS-Kern nc (verbatim-Port, gleiche Env-Schalter). FFG aktiv überall, wo das Plugin installiert ist; Opt-out nur per Env NC_FFG=off. Gates: Edit/Write/MultiEdit je Zieldatei (Ausnahmen per NC_FFG_EXEMPT_GLOBS, Volltext-Budget NC_FFG_FULL_DENIALS), destruktive Bash-Kommandos einzeln (Zusatzmuster per NC_FFG_EXTRA_DESTRUCTIVE), Routine-Bash einmal je Session; Read-only-Git nie. Fail-open bei internen Fehlern. Session-Start-Hinweis nur in Repos mit .nc-os-Marker (Komfort, kein Gate).",
+  "description": "Felix-OS Kontroll-Schicht — Gate 1 und Gate 2 vollständig gebaut, Port aus dem NovaCore-OS-Kern nc (gleiche Env-Schalter), Stand 2026-08-11 (Bauplan AP6 + AP7). (1) FFG — Fact-Forcing-Gate: PreToolUse, aktiv überall, wo das Plugin installiert ist, Opt-out nur per Env NC_FFG=off; Edit/Write/MultiEdit je Zieldatei (Ausnahmen per NC_FFG_EXEMPT_GLOBS, voll verankert, Volltext-Budget NC_FFG_FULL_DENIALS), destruktive Bash-Kommandos einzeln (quote-aware Analyse, Zusatzmuster per NC_FFG_EXTRA_DESTRUCTIVE), Routine-Bash einmal je Session; Read-only-Git nie — einschließlich der Pflicht-Einstiegsformen git log --oneline -N und git rev-parse [--abbrev-ref|--short] HEAD. (2) Session-Start-Zwang, dreiteilig mit EINEM Schalter NC_START_GATE=off: SessionStart (nc-session-start.js) injiziert Pflicht-Einstieg, lebenden Projektstand aus git/CHANGELOG/knowledge-base und den Stempel-Befehl als additionalContext (kann laut Doku nicht blocken; KEIN Marker mehr — ein Gate, das man vergessen kann, ist kein Gate), und das Start-Gate (nc-start-gate.js, PreToolUse) lehnt jede schreibende Aktion (Write/Edit/MultiEdit/NotebookEdit/Bash) ab, bis /nc-felix:start per Fakten-Stempel (nc-start-stempel.js) abgeschlossen ist. Der Stempel verifiziert --branch/--head gegen die Git-Lage des PROJEKTVERZEICHNISSES (CLAUDE_PROJECT_DIR, sonst cwd) und hält im Feld verified fest, ob überhaupt etwas zu prüfen war; ein unverifizierter Stempel öffnet nur dort, wo auch die gegatete Aktion in keinem Git-Baum läuft. Der State liegt unter os.tmpdir()/nc-felix-start-gate (eigenes Verzeichnis je OS der Familie), Override NC_START_GATE_STATE_DIR. Read-only-Git bleibt frei; der Durchlass für den Stempel-Befehl verlangt eine einzeilige, verankerte Invokation genau dieses Skripts (Interpreter- und Pfadvergleich) und verwirft angehängte Zweitaktionen. Subagenten ausgenommen. Gleicher Matcher wie das FFG, andere Prüfung (Prüfungs-Eigentum) — beachte: NotebookEdit gated nur Gate 2, nicht das FFG. Session-Schlüssel und Subagenten-Erkennung liegen in der geteilten Lib hooks/lib/session-key.js, damit alle Teile denselben Schlüssel ableiten. Safety-Gate (Gate 3) und Sitzungsabschluss (Gate 4) sind nicht gebaut. Alle fail-open bei internen Fehlern; Abschluss immer über process.exitCode, nie process.exit — das schneidet die gepufferte Deny-JSON ab und macht das Gate still wirkungslos.",
   "hooks": {
     "SessionStart": [
       {
@@ -18,6 +18,16 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/nc-ffg.js\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/nc-start-gate.js\"",
             "timeout": 10
           }
         ]
