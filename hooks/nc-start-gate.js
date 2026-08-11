@@ -91,7 +91,12 @@ function istDiesesSkript(pfad) {
 }
 
 function istStempelBefehl(command) {
-  const raw = String(command || '');
+  // ABSCHLIESSENDEN Leerraum vorher abschneiden. In der Shell ist er bedeutungslos, fuer die
+  // Newline-Pruefung darunter war er es nicht: ein angehaengtes `\n` — wie es beim Formatieren
+  // eines Befehls leicht entsteht — liess den EINZIGEN Oeffner des Gates scheitern. Ein Gate,
+  // das sich nicht mehr entsperren laesst, ist nicht fail-safe, sondern ein Deadlock
+  // (Review-Befund 2026-08-12). Ein Umbruch MITTEN im Befehl bleibt unten verboten.
+  const raw = String(command || '').replace(/\s+$/, '');
   // Zeilenumbruch und Wagenruecklauf sind vollwertige Kommandotrenner (Bash wie
   // PowerShell). Ein mehrzeiliger Befehl ist NIE "nur der Stempel".
   if (/[\r\n]/.test(raw)) return false;

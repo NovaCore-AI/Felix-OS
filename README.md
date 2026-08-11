@@ -6,7 +6,7 @@ Wurzel: `.claude-plugin/plugin.json`). Unterteilt wird in **Module** (Skill-Prä
 in Abteilungen; einen Kern als eigenes Plugin gibt es bewusst nicht — der Kern ist ein
 **Modul** dieses Plugins.
 
-**Status: v0.4.0 — Kernmodul ausgeliefert (7 Skills), Kontroll-Schicht mit Gate 1 **und**
+**Status: v0.4.1 — Kernmodul ausgeliefert (7 Skills), Kontroll-Schicht mit Gate 1 **und**
 Gate 2, eigene isolierte Wissensbasis, CI/Release-Standard · Arbeitsmodule folgen** — Modul-
 und Skill-Planung erfolgt gemeinsam mit dem Fachbereich (Felix); der laufende Plan dazu liegt
 in `knowledge-base/grundwissen/`.

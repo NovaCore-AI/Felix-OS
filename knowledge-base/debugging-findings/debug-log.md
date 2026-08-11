@@ -114,3 +114,133 @@
 - **Ursache:** Der Verhaltenswechsel wurde nur in SessionStart, Start-Skill und README nachgezogen; der verpflichtende Toter-Pfad-Sweep blieb unvollständig.
 - **Fix:** Offen — alle lebenden Marker-Aussagen auf den markerlosen Scope und `NC_START_GATE` umstellen; historische CHANGELOG-Treffer unverändert lassen.
 - **Beleg:** Treffer in `skills/os-info/SKILL.md:40`, `skills/save-session/SKILL.md:57`, `felix-sync.md:76-80,179` und `.nc-os:1`.
+
+### 2026-08-12 — Nachtrag zu den Codex-Befunden vom 2026-08-11: fünf sind geschlossen, einer bleibt offen
+
+Dieser Eintrag korrigiert nicht die Einträge oben (append-only), sondern **verweist** auf sie: Sie
+tragen alle „**Fix:** Offen", obwohl die Fixes in 0.4.0 tatsächlich eingebaut wurden. Wer den Stand
+aus diesem Protokoll liest — und genau dafür ist es da —, hält gelöste Bugs für offen.
+Verifiziert am Code, nicht erinnert:
+
+- **Unborn HEAD** → geschlossen, `nc-start-stempel.js:100-101` (`symbolic-ref --short HEAD` als
+  Fallback), Zweig `echterBranch && !echterHead && imGitBaum` prüft den Branch allein.
+- **Worktree-/Fremdbaum-Pflichtformen** → geschlossen, `lib/bash-analyse.js:504-521`
+  (führendes `-C <pfad>` wird überlesen, `worktree list` allowgelistet); Negativproben in T-15a.
+- **Lokales Programm namens `node`** → geschlossen, `nc-start-gate.js:60-73` (Realpath-Identität
+  mit `process.execPath`); **seit 2026-08-12 auch per Regressionstest T-15b gedeckt** — vorher war
+  der Fix ungetestet (siehe nächster Eintrag).
+- **Modul-Abschnitt im fremden Repo** → geschlossen, `nc-session-start.js:141` (`__dirname`).
+- **`git status` als „clean"** → geschlossen, `nc-session-start.js:90` (`''` ≠ `null`);
+  **seit 2026-08-12 per T-16i/T-16j gedeckt.**
+- **`doku-sync` vs. Versionsregel** → **nur halb** geschlossen: der Body war korrigiert, die
+  Frontmatter-`description` nicht (eigener Eintrag unten).
+- **Subagenten passieren Gate 2** → **bleibt offen**, unverändert. Bestätigt: `nc-start-gate.js`
+  kehrt bei `agent_id`/`agent_type` vor der Stempel-Prüfung zurück, und der Agent-Aufruf selbst
+  steht in keinem Matcher — die Ausnahme setzt einen Eltern-Stempel voraus, den sie nicht prüft.
+  Entscheidung liegt laut CHANGELOG 0.4.0 beim Kern; hier bewusst nicht einseitig geändert.
+- **Präventionsregel:** Wird ein protokollierter Befund behoben, gehört der **Nachtrag in
+  denselben Change** wie der Fix. „Fix: Offen" ist eine Tatsachenbehauptung über den heutigen
+  Stand — bleibt sie stehen, wird aus dem Protokoll eine Falschauskunft an den nächsten Agenten.
+
+### 2026-08-12 — Vier von fünf Zusagen aus 0.4.0 waren vakuum-grün (Mutationsprobe)
+
+- **Symptom:** Die Suite meldete 59/59 grün. Entfernt man die geprüfte Logik, meldet sie
+  **weiter** grün — der Test prüft dann nichts mehr, ohne es zu sagen.
+- **Vorgehen:** Mutationsprobe — Implementierung gezielt kaputt machen, Suite laufen lassen,
+  Datei aus einer In-Memory-Kopie restaurieren. Fünf Mutationen, vier blieben grün:
+  Realpath-Identität des Interpreters entfernt (der `./node`-Kanal durch Gate 2!) ·
+  `git()`-Vertrag `''`→`null` zurückgedreht · `unreleasedHead`-Abschnittsgrenze entfernt ·
+  `verified` im Stempel hart auf `true`. Nur „`deny()` stillgelegt" wurde rot.
+- **Ursache:** Die Tests prüften jeweils die **Nachbarschaft** der Zusage, nicht die Zusage
+  selbst. T-15 deckte Köder-**Skriptpfade** ab, aber keinen Köder-**Interpreter**; T-16c prüfte,
+  *dass* ein Stand-Abschnitt erscheint, nicht *was* er bei Fehler behauptet; kein Fall setzte
+  einen unverifizierten Stempel gegen einen echten Git-Baum.
+- **Fix:** T-14b, T-15b, T-15c, T-16g–T-16j ergänzt; I7-Wächter um `nc-start-gate.js` erweitert.
+  Erneute Probe mit zehn Mutationen: **10 von 10 rot.** Suite 66/66.
+- **Beleg:** Probelauf vor dem Fix „!! VAKUUM-GRUEN" für vier Mutationen; danach „rot (gut)" für
+  alle zehn.
+- **Präventionsregel:** Ein Test für einen **Sicherheits**-Fix wird gegen die Mutation
+  abgenommen, die den Fix entfernt — nicht gegen den Happy Path. „Suite grün" ist ohne
+  Gegenprobe keine Aussage über Abdeckung.
+
+### 2026-08-12 — Pflicht-Einstieg injizierte veröffentlichte CHANGELOG-Einträge als `[Unreleased]`
+
+- **Symptom:** Bei einem CHANGELOG mit der Kopfform `## v0.9.0 — …` enthielt der injizierte
+  `[Unreleased]`-Block die Einträge **dieser bereits veröffentlichten** Version.
+- **Ursache:** `unreleasedHead` beendete den Abschnitt nur an `/^##\s+\[?\d/` — einer Überschrift,
+  deren Version mit einer **Ziffer** beginnt. `## v0.9.0` beginnt mit `v`. Der Hook läuft
+  markerlos in **jedem** Repo auf dem Gerät, fremde CHANGELOG-Dialekte sind also der Normalfall,
+  nicht die Ausnahme. Bemerkenswert: `release.yml` schnitt den Abschnitt per awk schon korrekt an
+  jedem `^## ` — zwei Implementierungen derselben Grenze, die sich widersprachen.
+- **Fix:** Abschnitt endet an **jeder** `^## `-Überschrift (Unterabschnitte sind `###`).
+- **Beleg:** Probe mit dem Fixture oben zeigte „ALTES, LAENGST VEROEFFENTLICHTES Ding" im
+  Unreleased-Block; T-16g ist ohne den Fix rot.
+- **Präventionsregel:** Wird dieselbe Grenze an zwei Stellen gezogen (Hook und Workflow), gehört
+  sie in **einen** Test, der beide Formen prüft — sonst driftet die eine Stelle unbemerkt.
+
+### 2026-08-12 — Gefüllter `[Unreleased]`-Abschnitt wurde als „leer" injiziert
+
+- **Symptom:** Ein `[Unreleased]`-Abschnitt mit Prosa oder `*`-Bullets erzeugte im
+  Pflicht-Einstieg „**(leer — nichts Unveroeffentlichtes)**".
+- **Ursache:** Erkannt wurden nur `###`-Rubriken und `-`-Bullets. Griff kein Muster, war `body`
+  leer, und der Code deutete „nichts erkannt" als „nichts vorhanden" — **dieselbe Fehlerklasse**
+  wie das in 0.4.0 behobene „fehlgeschlagenes `git status` = clean": eine Behauptung über etwas,
+  das nie geprüft wurde.
+- **Fix:** `*`/`+` gelten als Bullets; hat der Abschnitt Inhalt, den der Hook nicht zerlegt, sagt
+  er das ausdrücklich. Zusätzlich wird die Kürzung auf `MAX_UNRELEASED_LINES` jetzt ausgewiesen,
+  statt eine Teilliste als vollständig zu präsentieren.
+- **Beleg:** Probe B lieferte „(leer — nichts Unveroeffentlichtes)" für einen gefüllten
+  Abschnitt; T-16h ist ohne den Fix rot.
+- **Präventionsregel:** „Kein Treffer meines Parsers" darf nie zu „Gegenstand existiert nicht"
+  verkürzt werden. Wo ein Hook Fakten injiziert, ist **Nichtwissen ein eigener Zustand** und muss
+  als solcher benannt werden.
+
+### 2026-08-12 — `doku-sync`-Frontmatter lehrte weiter die widerlegte Versionsregel
+
+- **Symptom:** `skills/doku-sync/SKILL.md` sagte in der `description` „Bump und Tag nur bei
+  Release-Entscheid" — genau die Regel, die der Eintrag vom 2026-08-11 als falsch belegt hat und
+  die 0.4.0 im Body korrigierte.
+- **Ursache:** Der Fix von 0.4.0 fasste nur den Body an. Die Frontmatter blieb stehen und
+  widersprach ab da dem eigenen Schritt 6, `AGENTS.md:72-75` und dem CHANGELOG, der den Fix
+  bereits als erledigt auswies.
+- **Wirkung — der eigentliche Befund:** Laut offizieller Skills-Doku (code.claude.com/docs
+  `skills`, abgerufen 2026-08-12) wird die `description` in den Kontext geladen, damit das Modell
+  über den Einsatz des Skills entscheidet — der Body erst beim Aufruf. Die falsche Regel stand
+  also genau an der Stelle, die **immer** mitliest, und die richtige an der, die nur manchmal
+  geladen wird. Der Fix wirkte dort nicht, wo er wirken musste.
+- **Fix:** Beschreibung an die harte Regel angeglichen.
+- **Beleg:** `grep -n "Release-Entscheid"` traf `skills/doku-sync/SKILL.md:7-8` gegen
+  `AGENTS.md:72-75` und `skills/doku-sync/SKILL.md:46-57`.
+- **Präventionsregel:** Wird eine Regel in einem Skill korrigiert, ist die **Frontmatter Teil des
+  Fixes**, nicht Beiwerk. Beim Toter-Pfad-Sweep den Altbegriff auch gegen `description`-Blöcke
+  greppen — dort steht der Text, den das Modell zuerst sieht.
+
+### 2026-08-12 — Gate 2 war durch einen abschließenden Zeilenumbruch nicht mehr entsperrbar
+
+- **Symptom:** `node "<stempelpfad>" --session … --branch … --head …` mit angehängtem `\n` (oder
+  `\r\n`) wurde vom Stempel-Durchlass abgelehnt. Da der Stempel der **einzige** Öffner von Gate 2
+  ist, blieb die Session dann dauerhaft schreibunfähig.
+- **Ursache:** `istStempelBefehl` wies jeden Befehl mit `\r` oder `\n` ab — richtig gegen
+  angehängte Zweitaktionen (`…\necho pwned`), aber die Prüfung unterschied nicht zwischen einem
+  Umbruch **mitten** im Befehl und **abschließendem** Leerraum, der in der Shell bedeutungslos
+  ist.
+- **Fix:** abschließenden Leerraum vor der Prüfung abschneiden; interne Umbrüche bleiben verboten.
+- **Beleg:** Probelauf: „DENY | trailing newline" und „DENY | trailing CRLF" neben „ALLOW |
+  BASELINE"; T-15c ist ohne den Fix rot, die Negativprobe `…\necho pwned` bleibt DENY.
+- **Präventionsregel:** Bei einem Gate mit **genau einem** Öffner ist die Sperre des Öffners kein
+  fail-safe, sondern ein Deadlock. Jede Verschärfung am Öffner braucht neben der Negativprobe
+  auch eine **Positivprobe für die harmlose Variante**.
+
+### 2026-08-12 — `heartbeat()` schreibt den Stempel nicht atomar (offen, gemeldet)
+
+- **Symptom:** Bisher nicht beobachtet; aus dem Code abgeleitet.
+- **Ursache:** `nc-start-gate.js` frischt `last_active` per direktem `fs.writeFileSync` auf.
+  `nc-ffg.js:138-150` benutzt für denselben Zweck bewusst Temp-Datei + Rename, mit der Begründung
+  „verhindert halb geschriebene Reads". Bei parallelen Tool-Aufrufen einer Session laufen mehrere
+  Gate-Prozesse gleichzeitig auf **dieselbe** Stempeldatei.
+- **Wirkung:** Ein zerrissener Stempel ist nicht parsebar, zählt als „nicht gestempelt" und
+  erzeugt eine **überflüssige Ablehnung**, die sich durch erneutes Stempeln selbst heilt — also
+  fail-safe, aber unnötig.
+- **Fix:** Offen — bewusst nicht in diesem Review geändert: ein deterministischer Renn-Test fehlt,
+  und ein ungetesteter Umbau an Sicherheitscode wäre das größere Risiko als der Befund.
+- **Beleg:** `nc-start-gate.js:158-165` gegenüber `nc-ffg.js:138-150`.

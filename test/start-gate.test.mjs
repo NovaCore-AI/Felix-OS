@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, readdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -151,6 +151,47 @@ test('T-14a Stempel mit korrekten Fakten oeffnet das Gate', () => {
   } finally { rmSync(state, { recursive: true, force: true }); }
 });
 
+test('T-14b ein UNVERIFIZIERTER Stempel oeffnet nicht in einem echten Git-Baum', () => {
+  // Die zentrale Zusage von Gate 2 gegen den `cd`-Trick: Ein Stempel, der ausserhalb eines
+  // Git-Baums entstand (nichts zu verifizieren), darf das Gate NICHT fuer das echte Repo
+  // oeffnen. Bis 2026-08-12 war das von keinem Test gedeckt — die Mutation
+  // `const verified = true` liess die Suite gruen (Mutationsprobe, debug-log.md).
+  const state = frischerState();
+  const ohneGit = mkdtempSync(join(tmpdir(), 'nc-felix-ohne-git-'));
+  try {
+    const gestempelt = spawnSync(process.execPath, [STEMPEL, '--session', 'test-session-t14b'], {
+      encoding: 'utf8',
+      env: {
+        ...process.env, NC_START_GATE: '',
+        NC_START_GATE_STATE_DIR: state, CLAUDE_PROJECT_DIR: ohneGit
+      }
+    });
+    assert.equal(gestempelt.status, 0, String(gestempelt.stderr || ''));
+    assert.match(String(gestempelt.stdout || ''), /nichts zu verifizieren/i,
+      'Vorbedingung: der Stempel entstand ausserhalb eines Git-Baums');
+
+    // Dort, wo es wirklich nichts zu verifizieren gibt, gilt er weiterhin …
+    const frei = rufeGate({
+      ...SCHREIB_EINGABE, session_id: 'test-session-t14b', cwd: ohneGit,
+      tool_input: { file_path: join(ohneGit, 'egal.md'), content: 'x' }
+    }, state, { CLAUDE_PROJECT_DIR: '' });
+    assert.equal(frei, null,
+      'ausserhalb eines Git-Baums muss der unverifizierte Stempel gelten');
+
+    // … aber im echten Repo nicht.
+    const geblockt = rufeGate(
+      { ...SCHREIB_EINGABE, session_id: 'test-session-t14b', cwd: root },
+      state, { CLAUDE_PROJECT_DIR: '' });
+    assert.ok(istDeny(geblockt),
+      'ein ungeprueft gesetzter Stempel darf das echte Repo NICHT oeffnen');
+    assert.match(geblockt.hookSpecificOutput.permissionDecisionReason, /OHNE Git-Verifikation/i,
+      'die Ablehnung muss den Grund benennen, damit erneut gestempelt werden kann');
+  } finally {
+    rmSync(state, { recursive: true, force: true });
+    rmSync(ohneGit, { recursive: true, force: true });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // T-15 — der Stempel-Durchlass verwirft angehaengte Zweitaktionen
 // ---------------------------------------------------------------------------
@@ -186,6 +227,64 @@ test('T-15 Stempel-Durchlass verwirft angehaengte Zweitaktionen', () => {
     }, state);
     assert.equal(durchlass, null,
       'die reine Stempel-Invokation muss durchgelassen werden, sonst oeffnet das Gate nie');
+  } finally { rmSync(state, { recursive: true, force: true }); }
+});
+
+test('T-15b Durchlass verwirft ein LOKALES Programm namens node (Interpreter-Identitaet)', () => {
+  // Der Codex-Befund vom 2026-08-11: `./node "<echter Stempelpfad>"` war ein Kanal fuer
+  // beliebigen Code durch Gate 2, weil nur der Basisname verglichen wurde. Der Fix prueft
+  // Realpath-Identitaet mit dem laufenden Interpreter — bis 2026-08-12 ohne Regressionstest
+  // (die Mutation „nur Basename" liess T-15 gruen, Mutationsprobe in debug-log.md).
+  const state = frischerState();
+  const koeder = mkdtempSync(join(tmpdir(), 'nc-felix-koeder-'));
+  try {
+    for (const name of ['node', 'node.exe']) {
+      writeFileSync(join(koeder, name), '#!/bin/sh\necho pwned\n');
+    }
+    for (const name of ['node', 'node.exe']) {
+      const command = `"${join(koeder, name)}" "${STEMPEL}" --session s --branch main --head abcdefg`;
+      const antwort = rufeGate({
+        tool_name: 'Bash', session_id: 'test-session-t15b', cwd: root,
+        tool_input: { command }
+      }, state);
+      assert.ok(istDeny(antwort),
+        `ein lokales Programm namens ${name} darf den Durchlass nicht oeffnen`);
+    }
+
+    // Gegenprobe: der ECHTE Interpreter mit explizitem Pfad MUSS durch — sonst waere der
+    // Fix eine Sperre statt einer Identitaetspruefung.
+    const echt = rufeGate({
+      tool_name: 'Bash', session_id: 'test-session-t15b', cwd: root,
+      tool_input: { command: `"${process.execPath}" "${STEMPEL}" --session s --branch main --head abcdefg` }
+    }, state);
+    assert.equal(echt, null, 'der echte Node-Interpreter muss mit explizitem Pfad durchkommen');
+  } finally {
+    rmSync(state, { recursive: true, force: true });
+    rmSync(koeder, { recursive: true, force: true });
+  }
+});
+
+test('T-15c abschliessender Zeilenumbruch sperrt den Durchlass nicht aus', () => {
+  // Ein Gate, dessen EINZIGER Oeffner an einem angehaengten `\n` scheitert, ist nicht
+  // fail-safe, sondern nicht mehr entsperrbar. Abschliessender Leerraum ist in der Shell
+  // bedeutungslos; ein Zeilenumbruch MITTEN im Befehl bleibt eine zweite Aktion (T-15).
+  const state = frischerState();
+  const basis = `node "${STEMPEL}" --session s --branch main --head abcdefg`;
+  try {
+    for (const command of [basis + '\n', basis + '\r\n', basis + '  \n']) {
+      const antwort = rufeGate({
+        tool_name: 'Bash', session_id: 'test-session-t15c', cwd: root,
+        tool_input: { command }
+      }, state);
+      assert.equal(antwort, null,
+        `abschliessender Leerraum darf den Durchlass nicht sperren: ${JSON.stringify(command)}`);
+    }
+    // Negativprobe: ein Zeilenumbruch mit Inhalt danach bleibt eine Zweitaktion.
+    const zweitaktion = rufeGate({
+      tool_name: 'Bash', session_id: 'test-session-t15c', cwd: root,
+      tool_input: { command: basis + '\necho pwned' }
+    }, state);
+    assert.ok(istDeny(zweitaktion), 'ein zweites Kommando nach dem Umbruch muss blocken');
   } finally { rmSync(state, { recursive: true, force: true }); }
 });
 

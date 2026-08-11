@@ -3,9 +3,10 @@ name: doku-sync
 description: >-
   Führt vor einem Commit den übergreifenden Doku-Workflow des Felix-OS aus — prüft zuerst auf
   Redundanzen, zieht die lebende Doku nach (AGENTS.md, README, felix-sync.md, Registry,
-  eigener SSOT-Index), stellt den signierten CHANGELOG-Eintrag sicher, prüft den
-  Versions-Gleichstand zwischen plugin.json und module-registry.json (Bump und Tag nur bei
-  Release-Entscheid) und schreibt abschließend den Prüfstempel. Trigger-Begriffe:
+  eigener SSOT-Index), stellt den signierten CHANGELOG-Eintrag sicher und prüft den
+  Versions-Gleichstand zwischen plugin.json und module-registry.json — der Bump gehört in
+  dieselbe Änderung, sobald etwas Ausgeliefertes berührt ist; nur der Release-Schnitt samt Tag
+  hängt am Maintainer-Entscheid. Schreibt abschließend den Prüfstempel. Trigger-Begriffe:
   „Doku nachziehen", „Doku-Sync", „CHANGELOG-Eintrag", „Version bumpen", „Release-Tag",
   „Abschluss-Checkliste", „Commit vorbereiten".
 ---

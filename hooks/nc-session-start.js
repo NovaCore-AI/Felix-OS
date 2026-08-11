@@ -100,19 +100,43 @@ function unreleasedHead(root) {
   const lines = raw.split(/\r?\n/);
   const start = lines.findIndex((l) => /^##\s*\[Unreleased\]/i.test(l));
   if (start === -1) return null;
-  const body = [];
+  // Abschnittsgrenze: JEDE weitere Ebene-2-Ueberschrift beendet den Unreleased-Block.
+  // Vorher endete er nur an einer Ueberschrift, deren Version mit einer ZIFFER beginnt
+  // ("## 0.2.2 — …", "## [0.6.1] — …"). Die ebenso verbreitete Form "## v0.9.0 — …" rutschte
+  // durch, und die BEREITS VEROEFFENTLICHTEN Eintraege darunter wurden als
+  // "unveroeffentlicht" injiziert — eine falsche Tatsachenbehauptung im Pflicht-Einstieg
+  // (Review-Befund 2026-08-12). release.yml schneidet den Abschnitt mit awk ebenfalls an
+  // JEDEM `^## `; beide Stellen sagen jetzt dasselbe. Unterabschnitte sind `###`, an einer
+  // Ebene-2-Ueberschrift endet der Abschnitt also immer.
+  const abschnitt = [];
   for (const line of lines.slice(start + 1)) {
-    // Naechster Versionsabschnitt: dieses Repo schreibt "## 0.2.2 — …" ohne Klammern,
-    // der Kern "## [0.6.1] — …". Beide Formen beenden den Unreleased-Block.
-    if (/^##\s+\[?\d/.test(line)) break;
-    if (/^###\s+/.test(line)) {
-      body.push(line.trim());
-    } else if (/^-\s+/.test(line)) {
-      body.push(line.trim().replace(/\s+$/, '').slice(0, 160));
-    }
-    if (body.length >= MAX_UNRELEASED_LINES) break;
+    if (/^##\s/.test(line)) break;
+    abschnitt.push(line);
   }
-  return body.length ? body.join('\n') : '(leer — nichts Unveroeffentlichtes)';
+
+  // `*` und `+` gelten als Bullet-Marker wie `-` — Markdown erlaubt alle drei.
+  const erkannt = [];
+  for (const line of abschnitt) {
+    if (/^###\s+/.test(line)) {
+      erkannt.push(line.trim());
+    } else if (/^[-*+]\s+/.test(line)) {
+      erkannt.push(line.trim().replace(/\s+$/, '').slice(0, 160));
+    }
+  }
+
+  if (!abschnitt.some((l) => l.trim())) return '(leer — nichts Unveroeffentlichtes)';
+  if (!erkannt.length) {
+    // Der Abschnitt HAT Inhalt, nur nicht in einer Form, die dieser Hook zerlegt (reine
+    // Prosa, Tabelle, eingerueckte Liste). "leer" waere hier genau derselbe Fehler wie das
+    // frueher als "clean" injizierte fehlgeschlagene `git status`: eine Behauptung ueber
+    // etwas, das nie geprueft wurde.
+    return '(nicht leer, aber in einer hier nicht zerlegten Form — Abschnitt selbst lesen)';
+  }
+
+  const gezeigt = erkannt.slice(0, MAX_UNRELEASED_LINES);
+  const rest = erkannt.length - gezeigt.length;
+  return gezeigt.join('\n')
+    + (rest > 0 ? '\n… und ' + rest + ' weitere Zeile(n) — Abschnitt selbst lesen' : '');
 }
 
 // Laufende Vorhaben: reine Dateinamen, kein Inhalt (die Triage macht der Agent).
@@ -181,6 +205,39 @@ function stempelHinweis(sessionKey) {
     + 'Aktion ab; Lesen und Read-only-Git bleiben frei.';
 }
 
+// Zeilen des Abschnitts „Lebender Stand" aus den drei Git-Rohwerten bauen.
+//
+// Ausgelagert und exportiert, damit die entscheidende Unterscheidung direkt pruefbar ist:
+// `status === ''` heisst „erfolgreich geprueft, nichts geaendert" (clean), `status === null`
+// heisst „Fehler oder Timeout, wir wissen es NICHT" (unbekannt). Genau diese Unterscheidung
+// war der Befund vom 2026-08-11 — vorher lieferte der Git-Wrapper fuer beides `null` und der
+// Pflicht-Einstieg behauptete einen sauberen Baum, den niemand geprueft hatte. Eine
+// Mutationsprobe am 2026-08-12 zeigte, dass kein Test sie deckte (die Suite blieb gruen,
+// nachdem der Fix entfernt war), deshalb ist die Logik jetzt einzeln testbar.
+function standZeilen(branch, commits, status) {
+  const stand = [];
+  if (branch) stand.push('- Branch: `' + branch + '`');
+  if (commits) stand.push('- Letzte Commits:\n' + commits.split(/\r?\n/).map((l) => '  - ' + l).join('\n'));
+  if (status === null) {
+    // Nur melden, wenn wir ueberhaupt in einem Git-Baum sind — sonst gibt es nichts zu sagen.
+    // NIE "clean" behaupten: Wir wissen es an dieser Stelle nicht.
+    if (branch) {
+      stand.push('- Working Tree: **unbekannt** — `git status` lieferte keine Antwort '
+        + '(Fehler oder Timeout). Vor eigenen Änderungen selbst prüfen.');
+    }
+  } else if (status === '') {
+    stand.push('- Working Tree: clean');
+  } else {
+    const zeilen = status.split(/\r?\n/).filter(Boolean);
+    const gezeigt = zeilen.slice(0, MAX_STATUS_FILES).map((l) => '  - ' + l.trim());
+    const rest = zeilen.length - gezeigt.length;
+    stand.push('- **Working Tree hat ' + zeilen.length + ' Änderung(en)** — vor eigenen '
+      + 'Änderungen prüfen, ob ein fremder Umbau läuft:\n' + gezeigt.join('\n')
+      + (rest > 0 ? '\n  - … und ' + rest + ' weitere' : ''));
+  }
+  return stand;
+}
+
 function buildContext(root, source, sessionKey) {
   const teile = [];
   const version = pluginVersion();
@@ -206,26 +263,7 @@ function buildContext(root, source, sessionKey) {
   const status = git(root, ['status', '--porcelain']);
   const branch = git(root, ['rev-parse', '--abbrev-ref', 'HEAD']);
 
-  const stand = [];
-  if (branch) stand.push('- Branch: `' + branch + '`');
-  if (commits) stand.push('- Letzte Commits:\n' + commits.split(/\r?\n/).map((l) => '  - ' + l).join('\n'));
-  if (status === null) {
-    // Nur melden, wenn wir ueberhaupt in einem Git-Baum sind — sonst gibt es nichts zu sagen.
-    // NIE "clean" behaupten: Wir wissen es an dieser Stelle nicht.
-    if (branch) {
-      stand.push('- Working Tree: **unbekannt** — `git status` lieferte keine Antwort '
-        + '(Fehler oder Timeout). Vor eigenen Änderungen selbst prüfen.');
-    }
-  } else if (status === '') {
-    stand.push('- Working Tree: clean');
-  } else {
-    const zeilen = status.split(/\r?\n/).filter(Boolean);
-    const gezeigt = zeilen.slice(0, MAX_STATUS_FILES).map((l) => '  - ' + l.trim());
-    const rest = zeilen.length - gezeigt.length;
-    stand.push('- **Working Tree hat ' + zeilen.length + ' Änderung(en)** — vor eigenen '
-      + 'Änderungen prüfen, ob ein fremder Umbau läuft:\n' + gezeigt.join('\n')
-      + (rest > 0 ? '\n  - … und ' + rest + ' weitere' : ''));
-  }
+  const stand = standZeilen(branch, commits, status);
   if (stand.length) teile.push('## Lebender Stand\n' + stand.join('\n'));
 
   const unreleased = unreleasedHead(root);
@@ -279,7 +317,13 @@ function main() {
   if (response) process.stdout.write(JSON.stringify(response));
 }
 
-module.exports = { buildSessionStartResponse, buildContext, laufendeVorhaben, repoRoot };
+// `git`, `standZeilen` und `unreleasedHead` sind fuer die Tests mit-exportiert: Ihre
+// Vertraege (Erfolg-leer vs. Fehler, keine erfundenen Tatsachen) sind der Kern von Gate 2,
+// Teil 1 und waren bis 2026-08-12 nur indirekt und damit gar nicht gedeckt.
+module.exports = {
+  buildSessionStartResponse, buildContext, laufendeVorhaben, repoRoot,
+  git, standZeilen, unreleasedHead
+};
 
 if (require.main === module) {
   try {

@@ -11,9 +11,26 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+// Default-Import (nicht benannt): Der Hook ist CommonJS, und die Default-Form ist ueber
+// Node 20/22/24 hinweg die verlaesslichere Interop-Variante.
+import hookModul from '../hooks/nc-session-start.js';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const HOOK = join(root, 'hooks', 'nc-session-start.js');
+
+/** Wegwerf-Verzeichnis mit einer CHANGELOG.md daraus bauen. */
+function mitChangelog(inhalt) {
+  const dir = mkdtempSync(join(tmpdir(), 'nc-felix-changelog-'));
+  writeFileSync(join(dir, 'CHANGELOG.md'), inhalt);
+  return dir;
+}
+
+/** Nur den `[Unreleased]`-Abschnitt des injizierten Kontexts. */
+function unreleasedBlock(dir) {
+  const text = hookModul.buildContext(dir, 'startup', 'test-unreleased');
+  const i = text.indexOf('## `[Unreleased]`');
+  return i === -1 ? null : text.slice(i).split('\n\n')[0];
+}
 
 /** Hook als Kindprozess starten; liefert die geparste Antwort (oder null). */
 function rufeHook(eingabe, extraEnv = {}) {
@@ -111,4 +128,125 @@ test('T-16f der Vorhaben-Abschnitt listet nur DATIERTE Dateien', () => {
     assert.doesNotMatch(text, /Referenz-ohne-Datum\.md/,
       'undatierte Referenzen gehoeren nicht in die Vorhaben-Liste');
   } finally { rmSync(fremd, { recursive: true, force: true }); }
+});
+
+// ---------------------------------------------------------------------------
+// T-16g bis T-16i — keine falschen Tatsachenbehauptungen im Pflicht-Einstieg
+//
+// Diese drei Faelle schliessen Regressionsluecken, die eine Mutationsprobe am 2026-08-12
+// nachgewiesen hat: Die Suite blieb gruen, obwohl die gepruefte Logik entfernt war. Der
+// injizierte Block ist der Pflicht-Einstieg — was dort steht, glaubt der Agent. Eine
+// Behauptung, die niemand geprueft hat, ist deshalb ein Defekt, kein Schoenheitsfehler.
+// ---------------------------------------------------------------------------
+
+test('T-16g `[Unreleased]` endet an JEDER Ebene-2-Ueberschrift, nicht nur an einer mit Ziffer', () => {
+  // `## v0.9.0` ist eine verbreitete CHANGELOG-Kopfform. Endete der Abschnitt dort nicht,
+  // wurden BEREITS VEROEFFENTLICHTE Eintraege als unveroeffentlicht injiziert.
+  const dir = mitChangelog([
+    '# Changelog', '',
+    '## [Unreleased]', '',
+    '### Added', '- brandneue Sache A', '',
+    '## v0.9.0 — 2026-01-01', '',
+    '### Added', '- LAENGST VEROEFFENTLICHTES Ding', ''
+  ].join('\n'));
+  try {
+    const block = unreleasedBlock(dir);
+    assert.ok(block, 'der `[Unreleased]`-Abschnitt fehlt ganz');
+    assert.match(block, /brandneue Sache A/, 'der echte Unreleased-Eintrag fehlt');
+    assert.doesNotMatch(block, /VEROEFFENTLICHTES Ding/,
+      'ein bereits veroeffentlichter Eintrag wurde als unveroeffentlicht injiziert');
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('T-16h nicht zerlegbarer `[Unreleased]`-Inhalt wird NIE als "leer" behauptet', () => {
+  // Prosa und `*`-Bullets sind gueltiges Markdown. Wer sie nicht zerlegen kann, darf nicht
+  // "nichts Unveroeffentlichtes" behaupten — das ist dieselbe falsche Tatsachenbehauptung
+  // wie das frueher als "clean" injizierte fehlgeschlagene `git status`.
+  const dir = mitChangelog([
+    '# Changelog', '',
+    '## [Unreleased]', '',
+    'Grosser Umbau der Auth-Schicht laeuft; Details im PR.', '',
+    '## 0.9.0 — 2026-01-01', '- alt', ''
+  ].join('\n'));
+  try {
+    const block = unreleasedBlock(dir);
+    assert.ok(block, 'der `[Unreleased]`-Abschnitt fehlt ganz');
+    // Geprueft wird die konkrete FALSCHE BEHAUPTUNG, nicht das Wort "leer": Eine ehrliche
+    // Meldung darf „nicht leer" sagen duerfen, ohne den Test zu brechen.
+    assert.doesNotMatch(block, /nichts Unveroeffentlichtes/i,
+      'ein Abschnitt MIT Inhalt wurde als „nichts Unveroeffentlichtes" gemeldet');
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+
+  // Gegenprobe: ein wirklich leerer Abschnitt DARF die Leer-Meldung tragen — sonst waere die
+  // Verschaerfung nur eine Umformulierung.
+  const leer = mitChangelog(['# Changelog', '', '## [Unreleased]', '', '## 0.9.0 — 2026-01-01', '- alt', ''].join('\n'));
+  try {
+    assert.match(unreleasedBlock(leer), /nichts Unveroeffentlichtes/i,
+      'ein wirklich leerer Abschnitt soll als leer ausgewiesen werden');
+  } finally { rmSync(leer, { recursive: true, force: true }); }
+
+  // `*` und `+` sind gueltige Markdown-Bullet-Marker. Ihr Inhalt muss ANKOMMEN — sonst
+  // faellt der Abschnitt auf die Ersatzmeldung zurueck, obwohl er zerlegbar ist.
+  const marker = mitChangelog([
+    '# Changelog', '',
+    '## [Unreleased]', '',
+    '* Sternchen-Eintrag X', '+ Plus-Eintrag Y', '',
+    '## 0.9.0 — 2026-01-01', '- alt', ''
+  ].join('\n'));
+  try {
+    const block = unreleasedBlock(marker);
+    assert.match(block, /Sternchen-Eintrag X/, '`*`-Bullets muessen im Block erscheinen');
+    assert.match(block, /Plus-Eintrag Y/, '`+`-Bullets muessen im Block erscheinen');
+  } finally { rmSync(marker, { recursive: true, force: true }); }
+});
+
+test('T-16i Working Tree: Fehler/Timeout heisst "unbekannt", nur Erfolg-leer heisst "clean"', () => {
+  // Der Kern des Befundes vom 2026-08-11: Der Git-Wrapper unterscheidet Erfolg-mit-leerer-
+  // Ausgabe ('') von Fehler/Timeout (null). Bis 2026-08-12 deckte KEIN Test diese
+  // Unterscheidung — die Mutation `return … || null` liess die Suite gruen.
+  const { standZeilen } = hookModul;
+  assert.equal(typeof standZeilen, 'function',
+    'standZeilen wird nicht exportiert — die Unterscheidung bleibt sonst unpruefbar');
+
+  const fehler = standZeilen('main', null, null).join('\n');
+  assert.match(fehler, /unbekannt/i, 'Fehler/Timeout muss als unbekannt ausgewiesen werden');
+  assert.doesNotMatch(fehler, /clean/i, 'Fehler/Timeout darf NIE als clean gelten');
+
+  const sauber = standZeilen('main', null, '').join('\n');
+  assert.match(sauber, /clean/i, 'Erfolg mit leerer Ausgabe ist ein sauberer Baum');
+  assert.doesNotMatch(sauber, /unbekannt/i, 'ein geprueft sauberer Baum ist nicht unbekannt');
+
+  const geaendert = standZeilen('main', null, ' M a.js').join('\n');
+  assert.match(geaendert, /1 Änderung/, 'Aenderungen muessen gezaehlt werden');
+
+  // Ohne Branch sind wir nicht nachweislich in einem Git-Baum: dann schweigen, statt zu raten.
+  assert.deepEqual(standZeilen(null, null, null), [],
+    'ohne Git-Lage darf gar nichts behauptet werden');
+});
+
+test('T-16j git(): Erfolg-mit-leerer-Ausgabe ist NICHT dasselbe wie Fehler', () => {
+  // T-16i prueft die AUSWERTUNG der drei Rohwerte. Dieser Fall prueft den WRAPPER selbst —
+  // ohne ihn bliebe die eigentliche Fehlerquelle offen: Eine Mutationsprobe am 2026-08-12
+  // zeigte, dass `return … || null` (der alte, fehlerhafte Zustand) die Suite gruen liess,
+  // weil kein Test den Rueckgabewert von git() direkt festnagelte.
+  const { git } = hookModul;
+  assert.equal(typeof git, 'function',
+    'git wird nicht exportiert — der Vertrag bleibt sonst unpruefbar');
+
+  // (a) FEHLER (kein Git-Baum) → null
+  const ohneGit = mkdtempSync(join(tmpdir(), 'nc-felix-kein-repo-'));
+  try {
+    assert.equal(git(ohneGit, ['status', '--porcelain']), null,
+      'ausserhalb eines Git-Baums muss der Wrapper null liefern (Fehler, nicht "leer")');
+  } finally { rmSync(ohneGit, { recursive: true, force: true }); }
+
+  // (b) ERFOLG mit leerer Ausgabe (frisches, leeres Repo) → '' und niemals null
+  const leeresRepo = mkdtempSync(join(tmpdir(), 'nc-felix-leeres-repo-'));
+  try {
+    const init = spawnSync('git', ['init', leeresRepo], { encoding: 'utf8' });
+    assert.equal(init.status, 0, 'Vorbedingung: git init gelingt');
+    assert.equal(git(leeresRepo, ['status', '--porcelain']), '',
+      'ein geprueft sauberer Baum liefert Erfolg mit LEERER Ausgabe — wird daraus null, '
+      + 'entsteht daraus wieder das falsche "Working Tree: clean"');
+  } finally { rmSync(leeresRepo, { recursive: true, force: true }); }
 });

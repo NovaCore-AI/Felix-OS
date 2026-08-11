@@ -315,8 +315,12 @@ test('Invariante I7: kein Hook ruft process.exit(), alle setzen process.exitCode
     assert.doesNotMatch(code, /process\.exit\(/, `${path.basename(datei)} ruft process.exit()`);
   }
 
-  // Die Einstiegs-Hooks beenden ausdruecklich ueber exitCode.
-  for (const name of ['nc-ffg.js', 'nc-session-start.js']) {
+  // Die Einstiegs-Hooks beenden ausdruecklich ueber exitCode. `nc-start-gate.js` gehoert
+  // ausdruecklich dazu (ergaenzt 2026-08-12): Gerade dort hiesse eine abgeschnittene
+  // Deny-JSON, dass Gate 2 still nicht mehr blockt — der Waechter liess den neuesten Hook
+  // bis dahin aus. `nc-start-stempel.js` steht bewusst NICHT hier: Es ist kein Hook, sondern
+  // ein CLI-Skript und signalisiert Verweigerung ueber exitCode 1.
+  for (const name of ['nc-ffg.js', 'nc-session-start.js', 'nc-start-gate.js']) {
     const code = fs.readFileSync(path.join(hooksDir, name), 'utf8');
     assert.match(code, /process\.exitCode\s*=\s*0/, `${name} setzt process.exitCode nicht`);
   }

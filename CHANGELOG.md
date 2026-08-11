@@ -1,5 +1,86 @@
 # Changelog — nc-felix
 
+## 0.4.1 — 2026-08-12
+
+Adversariales Review des offenen PR #1 (Reviewer: Claude, Opus 5, Review-Agent). Alle Befunde
+sind im `knowledge-base/debugging-findings/debug-log.md` protokolliert; belegt ist jeder Fix
+durch einen Test, der **vorher rot** war.
+
+### Fixed
+
+- **Der Pflicht-Einstieg injizierte bereits veröffentlichte CHANGELOG-Einträge als
+  `[Unreleased]`** (HIGH). Der Abschnitt endete nur an einer Ebene-2-Überschrift, deren Version
+  mit einer **Ziffer** beginnt (`## 0.2.2 …`, `## [0.6.1] …`). Die ebenso verbreitete Form
+  `## v0.9.0 — …` beendete ihn nicht — der Hook läuft markerlos in **jedem** Repo auf dem
+  Gerät, fremde CHANGELOG-Dialekte sind also der Normalfall. Damit stand im
+  Session-Start-Block, längst Ausgeliefertes sei unveröffentlicht. **Fix:** Der Abschnitt endet
+  an **jeder** `^## `-Überschrift — genau wie der awk-Schnitt in `release.yml`, der dieselbe
+  Grenze schon richtig zog. Die beiden Stellen widersprachen sich vorher.
+  — *Claude (Opus 5, Review-Agent)*
+- **Ein `[Unreleased]`-Abschnitt MIT Inhalt wurde als „leer — nichts Unveröffentlichtes"
+  injiziert** (HIGH). Erkannt wurden nur `###`-Rubriken und `-`-Bullets; Prosa, Tabellen und
+  die gültigen Markdown-Marker `*`/`+` fielen durch und der Hook behauptete Leere. Das ist
+  dieselbe Fehlerklasse wie das in 0.4.0 behobene „fehlgeschlagenes `git status` wird als
+  clean injiziert": eine Tatsachenbehauptung über etwas, das nie geprüft wurde. **Fix:** `*`
+  und `+` zählen als Bullets; hat der Abschnitt Inhalt, den dieser Hook nicht zerlegt, sagt er
+  das — statt Leere zu behaupten. Zusätzlich wird die Kürzung auf acht Zeilen jetzt
+  ausgewiesen („… und N weitere"), statt eine Teilliste als vollständig zu zeigen.
+  — *Claude (Opus 5, Review-Agent)*
+- **`doku-sync` lehrte in der Frontmatter weiter die falsche Versionsregel** (HIGH). Der Body
+  war in 0.4.0 korrigiert worden, die `description` nicht: Sie sagte „Bump und Tag nur bei
+  Release-Entscheid" — das Gegenteil der harten Repo-Regel (`AGENTS.md`) und des eigenen
+  Skill-Schritts 6. Laut offizieller Skills-Doku (code.claude.com/docs `skills`, abgerufen
+  2026-08-12) ist die `description` **der** Text, der in den Kontext geladen wird, um über den
+  Einsatz des Skills zu entscheiden — der Fix von 0.4.0 wirkte also genau dort nicht, wo das
+  Modell liest. **Fix:** Beschreibung an die harte Regel angeglichen; am Maintainer-Entscheid
+  hängt allein der Release-Schnitt. — *Claude (Opus 5, Review-Agent)*
+- **Gate 2 war durch einen abschließenden Zeilenumbruch nicht mehr entsperrbar** (MEDIUM). Der
+  Stempel-Durchlass verwarf jeden Befehl, der `\r` oder `\n` enthält — richtig gegen
+  angehängte Zweitaktionen, aber es traf auch ein **abschließendes** `\n`, das beim Formatieren
+  eines Befehls leicht entsteht. Da der Stempel der **einzige** Öffner des Gates ist, war das
+  kein fail-safe, sondern ein Deadlock. **Fix:** abschließender Leerraum wird abgeschnitten
+  (in der Shell bedeutungslos); ein Umbruch **mitten** im Befehl bleibt verboten, per
+  Negativprobe belegt. — *Claude (Opus 5, Review-Agent)*
+
+### Added — Regressionsnetz gegen vakuum-grüne Zusagen
+
+Eine Mutationsprobe (Implementierung gezielt kaputt machen, Suite laufen lassen) zeigte: **vier
+von fünf** geprüften Mutationen ließen die Suite von 0.4.0 **grün**. Ungedeckt waren unter
+anderem die beiden wichtigsten Fixes aus 0.4.0 selbst — die Interpreter-Identität des
+Stempel-Durchlasses (der `./node`-Kanal durch Gate 2) und die Unterscheidung
+Erfolg-leer/Fehler im Git-Wrapper. Neu:
+
+- **T-14b** unverifizierter Stempel öffnet nicht im echten Git-Baum (die Zusage gegen den
+  `cd`-Trick) · **T-15b** lokales Programm namens `node` wird abgewiesen, der echte
+  Interpreter mit explizitem Pfad kommt durch · **T-15c** abschließender Leerraum sperrt den
+  Durchlass nicht aus · **T-16g** Abschnittsgrenze · **T-16h** keine Leer-Behauptung bei
+  Inhalt · **T-16i** `standZeilen`: Fehler heißt „unbekannt", nur Erfolg-leer heißt „clean" ·
+  **T-16j** der `git()`-Vertrag selbst (`''` ≠ `null`).
+- Der **I7-Wächter** (`process.exitCode` statt `process.exit`) prüfte nur `nc-ffg.js` und
+  `nc-session-start.js`; `nc-start-gate.js` fehlte — gerade dort hieße eine abgeschnittene
+  Deny-JSON, dass Gate 2 still nicht mehr blockt. Ergänzt.
+- Belegt: **66/66 grün**, `validate . --strict` → „Validation passed", und **10 von 10**
+  Mutationen werden jetzt rot. — *Claude (Opus 5, Review-Agent)*
+
+### Noch offen (gemeldet, bewusst nicht einseitig geändert)
+
+- **Subagenten passieren Gate 2 vor dem Eltern-Stempel** — unverändert die in 0.4.0
+  dokumentierte Entwurfsentscheidung des Kerns. Im Review bestätigt, dass die Ausnahme vor der
+  Stempel-Prüfung greift und der Agent-Aufruf selbst nicht gematcht wird; die Entscheidung
+  bleibt beim Kern.
+- **`heartbeat()` schreibt den Stempel nicht atomar** (`nc-start-gate.js`), während `nc-ffg.js`
+  für genau diesen Fall bewusst Temp-Datei + Rename benutzt. Bei parallelen Tool-Aufrufen einer
+  Session kann ein zerrissener Stempel entstehen; die Folge ist eine **überflüssige
+  Ablehnung**, die sich durch erneutes Stempeln selbst heilt — fail-safe, aber unschön. Nicht
+  geändert, weil ein deterministischer Renn-Test fehlt und ein ungetesteter Umbau an
+  Sicherheitscode das größere Risiko wäre.
+
+### Hinweis zur Version
+
+**Patch-Bump `0.4.0 → 0.4.1`** — Fixes an Ausgeliefertem (`hooks/`, `skills/`). Reine
+Test-Arbeit hätte keinen Bump gebraucht, die Hook- und Skill-Korrekturen schon: ohne Bump
+erreichen sie niemanden.
+
 ## 0.4.0 — 2026-08-11
 
 Pflege-Skill und CI-/Release-Standard (Bauplan AP9). Vorlage: das Schwester-OS `nc-biggi`,
