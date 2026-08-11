@@ -1,0 +1,97 @@
+name: CI
+
+# Die Hooks (FFG, Session-Start-Zwang, Start-Gate) laufen bei den Nutzern auf Windows UND
+# Unix, deshalb beide Plattformen. Node-Spanne 20-24: das Team-Minimum ist nicht gepinnt,
+# und `node --test` mit Glob-Argumenten verhaelt sich je Version unterschiedlich - darum
+# expandiert hier immer die Bash das Glob (shell: bash, auch auf Windows).
+# Uebernommen aus dem CI-Standard des Schwester-OS nc-biggi (Standardprozess
+# abteilungs-plugin-bau.md Paragraph 3b.2 im OS-Repo), auf dieses Repo angepasst.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: ["20", "22", "24"]
+    steps:
+      # Actions per Full-SHA gepinnt: mutable Major-Tags waeren ein Supply-Chain-Vektor.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+
+      # Aufrufform wortgleich aus AGENTS.md: explizites Glob, nie ein Verzeichnis-Argument
+      # (node erwartet Dateien bzw. Glob-Muster).
+      #
+      # NC_START_GATE wird hier ausdruecklich GELEERT. Die Gate-2-Tests starten die Hooks als
+      # Kindprozesse; erbten sie einen gesetzten Opt-out, waere die Suite vakuum-gruen - sie
+      # meldete Erfolg, waehrend das Gate gar nicht laeuft (Befund 2026-08-11, debug-log.md).
+      # Die Testdateien leeren die Variable zusaetzlich selbst; hier steht es doppelt, weil
+      # ein stiller Ausfall genau der Fehler ist, den Gate 2 verhindern soll.
+      - name: Testsuite (Manifest, FFG, Gate 2, Wissensbasis)
+        shell: bash
+        env:
+          NC_START_GATE: ""
+          NC_FFG: ""
+        run: node --test test/*.test.mjs
+
+  plugin-validate:
+    name: Plugin-Validierung (--strict)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24"
+
+      # Version gepinnt: @latest hiesse, das Validierungsverhalten kann sich unter den
+      # Fuessen aendern. Bump bewusst zusammen mit der Team-Mindestversion pflegen.
+      - name: Claude Code CLI installieren
+        run: npm install -g @anthropic-ai/claude-code@2.1.220
+
+      # Harter Guard gegen stilles Ueberspringen: ohne CLI auf dem PATH wuerden die
+      # folgenden Schritte nie etwas pruefen.
+      - name: CLI aufloesbar
+        run: claude --version
+
+      # Positivkontrolle VOR der eigentlichen Pruefung: Ein absichtlich defekter
+      # Plain-Scalar in einer Wegwerf-Kopie MUSS den Validator rot machen. Meldet er dort
+      # keinen Fehler, prueft er keine Skills mehr - dann ist jedes Gruen darunter wertlos.
+      # Die intakte Kontrollgruppe unterscheidet "Validator erkennt Defekt" von "Validator
+      # crasht aus fremdem Grund".
+      - name: Positivkontrolle des Validators
+        run: |
+          cp -R . /tmp/felix-intakt
+          cp -R . /tmp/felix-kaputt
+          ziel="$(grep -rlE '^description: >-[[:space:]]*$' /tmp/felix-kaputt/skills --include=SKILL.md | head -1)"
+          test -n "$ziel"
+          sed -i 's/^description: >-[[:space:]]*$/description: Kaputt: absichtlich defekter Plain-Scalar/' "$ziel"
+          claude plugin validate /tmp/felix-intakt --strict
+          if claude plugin validate /tmp/felix-kaputt --strict; then
+            echo "::error::Validator hat den absichtlich defekten Skill NICHT bemaengelt - Skill-Pruefung ist wirkungslos"
+            exit 1
+          fi
+          echo "Positivkontrolle bestanden: intakte Kopie gruen, defekte Kopie rot."
+
+      # Die Repo-Wurzel IST das Plugin - strict prueft Manifest UND Skills (eine
+      # Marketplace-Ebene gibt es im Satelliten nicht).
+      - name: Plugin inkl. Skills (--strict)
+        run: claude plugin validate . --strict

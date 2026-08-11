@@ -271,3 +271,53 @@ test('erweiterte Read-only-Git-Introspektion: diff --cached/--stat und show <ref
   assert.equal(run(inputFor('t-ro2', 'Bash', { command: 'git diff --cached --stat' }), d.env), '');
   assert.equal(run(inputFor('t-ro2', 'Bash', { command: 'git show HEAD --stat' }), d.env), '');
 });
+
+// T-11 (Bauplan AP6): der dokumentierte Pflicht-Einstieg laeuft nicht ins Routine-Bash-Gate.
+test('Pflicht-Einstieg ist read-only: git log --oneline -10 wird nie gegated', () => {
+  const d = freshDirs();
+  assert.equal(run(inputFor('t-ro3', 'Bash', { command: 'git log --oneline -10' }), d.env), '');
+  assert.equal(run(inputFor('t-ro3', 'Bash', { command: 'git log --oneline --max-count=5' }), d.env), '');
+  // Negativprobe: eine schreibende log-nahe Form bleibt gegated (erste Routine-Bash der Session).
+  assert.match(denyReason(run(inputFor('t-ro3b', 'Bash', { command: 'git log --oneline -10 > out.txt' }), d.env)), /\[FFG\]/);
+});
+
+// T-12 (Bauplan AP6): die Stempel-Formen aus Gate 2 sind rein lesend.
+test('Stempel-Formen sind read-only: rev-parse --short HEAD und rev-parse HEAD', () => {
+  const d = freshDirs();
+  assert.equal(run(inputFor('t-ro4', 'Bash', { command: 'git rev-parse --short HEAD' }), d.env), '');
+  assert.equal(run(inputFor('t-ro4', 'Bash', { command: 'git rev-parse HEAD' }), d.env), '');
+  assert.equal(run(inputFor('t-ro4', 'Bash', { command: 'git rev-parse --abbrev-ref HEAD' }), d.env), '');
+});
+
+// T-10 (Bauplan AP6, Invariante I7): process.exit() schneidet auf POSIX den gepufferten
+// stdout-Write ab — eine abgeschnittene Deny-JSON hiesse: das Gate blockt still nicht.
+test('Invariante I7: kein Hook ruft process.exit(), alle setzen process.exitCode', () => {
+  const hooksDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'hooks');
+  const dateien = [];
+  (function sammeln(dir) {
+    for (const eintrag of fs.readdirSync(dir, { withFileTypes: true })) {
+      const voll = path.join(dir, eintrag.name);
+      if (eintrag.isDirectory()) sammeln(voll);
+      else if (eintrag.name.endsWith('.js')) dateien.push(voll);
+    }
+  })(hooksDir);
+  assert.ok(dateien.length >= 3, 'Hook-Dateien gefunden');
+
+  for (const datei of dateien) {
+    // Kommentare duerfen den Namen nennen — Zeilen- UND Blockkommentare werden entfernt,
+    // bevor gesucht wird (Review-Befund F3, Kimi K3 2026-08-11: ein spaeterer /* */-Block
+    // mit dem Wort haette den Waechter falsch rot gemacht).
+    const code = fs.readFileSync(datei, 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .split('\n')
+      .filter(zeile => !zeile.trim().startsWith('//'))
+      .join('\n');
+    assert.doesNotMatch(code, /process\.exit\(/, `${path.basename(datei)} ruft process.exit()`);
+  }
+
+  // Die Einstiegs-Hooks beenden ausdruecklich ueber exitCode.
+  for (const name of ['nc-ffg.js', 'nc-session-start.js']) {
+    const code = fs.readFileSync(path.join(hooksDir, name), 'utf8');
+    assert.match(code, /process\.exitCode\s*=\s*0/, `${name} setzt process.exitCode nicht`);
+  }
+});

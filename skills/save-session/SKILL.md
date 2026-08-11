@@ -54,7 +54,8 @@ kann. Er sichert **Wissen** — er stellt keine Commit-Reife her und ersetzt kei
 - **Der Agent committet und pusht nie selbst.** Keine automatischen Pushes, Merges, Posts,
   Releases oder Deployments ohne explizite Nutzerfreigabe — auch nicht „nur schnell den
   Journal-Eintrag".
-- **Fehlender `.nc-os`-Marker ist kein Abbruchgrund** — er steuert nur den Begrüßungs-Scope des
+- **Der frühere `.nc-os`-Marker ist wirkungslos** — seit 0.3.0 sind beide Gates markerlos; der
+  Scope hängt allein an `NC_FFG` und `NC_START_GATE`. Frühere Fassung: er steuerte den Scope des
   Session-Start-Hooks. Der Skill sichert den Stand trotzdem.
 
 ## Verifikation

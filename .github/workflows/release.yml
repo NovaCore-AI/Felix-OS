@@ -1,0 +1,86 @@
+name: Release
+
+# Macht aus einem gepushten annotierten Tag v<version> das GitHub-Release - Notes sind der
+# passende CHANGELOG-Abschnitt. Der Tag wird bewusst von Hand gesetzt (Maintainer-Freigabe;
+# die rote Linie bleibt unberuehrt: das Release ist repo-intern).
+# Uebernommen aus dem Release-Standard des Schwester-OS nc-biggi (Standardprozess
+# abteilungs-plugin-bau.md Paragraph 3b.2 im OS-Repo). Ablauf dokumentiert in AGENTS.md.
+#
+# Vier Vorbedingungen, die absichtlich HART scheitern - jede stand schon einmal am Anfang
+# eines falsch etikettierten Releases:
+#   1. annotierter Tag (Lightweight-Tags tragen keine Tagger-Info)
+#   2. Tag == Version im Manifest
+#   3. gruene Testsuite
+#   4. vorhandener CHANGELOG-Abschnitt zur Version
+on:
+  push:
+    tags: ["v[0-9]*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # Actions per Full-SHA gepinnt, analog ci.yml.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # Der dokumentierte Release-Ablauf verspricht annotierte Tags - hier wird es erzwungen
+      # statt nur kommentiert.
+      - name: Tag ist annotiert
+        run: |
+          typ="$(git cat-file -t "$GITHUB_REF_NAME")"
+          echo "Tag-Objekttyp: $typ"
+          test "$typ" = "tag"
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24"
+
+      # Es gibt keine VERSION-Datei - die einzige Versionsquelle ist
+      # .claude-plugin/plugin.json (Mechanik-Fakt 6 des Standardprozesses
+      # abteilungs-plugin-bau.md im OS-Repo). Ein Tag mit fremdem Stand erzeugte ein Release
+      # mit falschem Etikett - lieber hart scheitern.
+      - name: Tag entspricht der Manifest-Version
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          manifest_version="$(node -p "require('./.claude-plugin/plugin.json').version")"
+          echo "Tag=$tag_version Manifest=$manifest_version"
+          test "$tag_version" = "$manifest_version"
+
+      # Kein Release auf rotem Stand - dieselbe Suite und dieselbe Env-Neutralisierung wie
+      # in der CI (ein geerbter Opt-out machte die Gate-2-Tests vakuum-gruen).
+      - name: Testsuite (Manifest, FFG, Gate 2, Wissensbasis)
+        shell: bash
+        env:
+          NC_START_GATE: ""
+          NC_FFG: ""
+        run: node --test test/*.test.mjs
+
+      - name: Release-Notes aus dem CHANGELOG schneiden
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          # Literalvergleich statt Regex: eine Version mit Metazeichen darf nie als Muster
+          # wirken. CHANGELOG-Kopfform hier: "## <version> — <datum>"; die
+          # Keep-a-Changelog-Form "## [<version>]" wird toleriert.
+          awk -v ver="$version" '
+            index($0, "## " ver " ") == 1 || index($0, "## [" ver "]") == 1 { drin=1; next }
+            drin && /^## / { exit }
+            drin { print }
+          ' CHANGELOG.md > /tmp/notes.md
+          if ! grep -q '[^[:space:]]' /tmp/notes.md; then
+            echo "::error::Kein CHANGELOG-Abschnitt ${version} gefunden - erst den Abschnitt schreiben, dann taggen"
+            exit 1
+          fi
+          cat /tmp/notes.md
+
+      - name: GitHub-Release erzeugen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME — Felix-OS (nc-felix)" \
+            --notes-file /tmp/notes.md \
+            --verify-tag
